@@ -26,7 +26,7 @@ describe('TransactionBuilder', function () {
     // TXB
     var txb = new TransactionBuilder(network)
     txb.addInput(txid, vout, Transaction.DEFAULT_SEQUENCE, spk)
-    txb.addOutput('mzDktdwPcWwqg8aZkPotx6aYi4mKvDD7ay', value)
+    txb.addOutput('bchtest:qrxjnnyhsfkrw2q6ccfsrex4a5m5wuzc2c92xdq49x', value)
     txb.enableBitcoinCash(true)
     txb.setVersion(2)
 
@@ -50,7 +50,7 @@ describe('TransactionBuilder', function () {
         sighashType: hashType, // This is how you tell Psbt it is forkid!!!
       })
       .addOutput({
-        address: 'mzDktdwPcWwqg8aZkPotx6aYi4mKvDD7ay',
+        address: 'bchtest:qrxjnnyhsfkrw2q6ccfsrex4a5m5wuzc2c92xdq49x',
         value,
       })
       .signInput(0, keyPair)

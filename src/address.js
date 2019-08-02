@@ -1,5 +1,6 @@
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
+const cashaddr = require('./cashaddr');
 const networks = require('./networks');
 const payments = require('./payments');
 const bscript = require('./script');
@@ -8,13 +9,45 @@ const bech32 = require('bech32');
 const bs58check = require('bs58check');
 const typeforce = require('typeforce');
 function fromBase58Check(address) {
-  const payload = bs58check.decode(address);
-  // TODO: 4.0.0, move to "toOutputScript"
-  if (payload.length < 21) throw new TypeError(address + ' is too short');
-  if (payload.length > 21) throw new TypeError(address + ' is too long');
-  const version = payload.readUInt8(0);
-  const hash = payload.slice(1);
-  return { version, hash };
+  const isBCH = cashaddr.VALID_PREFIXES.indexOf(address.split(':')[0]) > -1;
+  if (isBCH) {
+    const result = cashaddr.decode(address);
+    let network;
+    switch (result.prefix) {
+      case 'bitcoincash':
+        network = networks.bitcoin;
+        break;
+      case 'bchtest':
+        network = networks.testnet;
+        break;
+      case 'bchreg':
+        network = networks.regtest;
+        break;
+    }
+    let version;
+    switch (result.type) {
+      case 'P2PKH':
+        version = network.pubKeyHash;
+        break;
+      case 'P2SH':
+        version = network.scriptHash;
+        break;
+    }
+    if (result.hash.length < 20) throw new TypeError(address + ' is too short');
+    if (result.hash.length > 20) throw new TypeError(address + ' is too long');
+    return {
+      version: version,
+      hash: Buffer.from(result.hash),
+    };
+  } else {
+    const payload = bs58check.decode(address);
+    // TODO: 4.0.0, move to "toOutputScript"
+    if (payload.length < 21) throw new TypeError(address + ' is too short');
+    if (payload.length > 21) throw new TypeError(address + ' is too long');
+    const version = payload.readUInt8(0);
+    const hash = payload.slice(1);
+    return { version, hash };
+  }
 }
 exports.fromBase58Check = fromBase58Check;
 function fromBech32(address) {

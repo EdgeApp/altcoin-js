@@ -1,3 +1,4 @@
+import * as cashaddr from './cashaddr';
 import { Network } from './networks';
 import * as networks from './networks';
 import * as payments from './payments';
@@ -20,16 +21,50 @@ export interface Bech32Result {
 }
 
 export function fromBase58Check(address: string): Base58CheckResult {
-  const payload = bs58check.decode(address);
+  const isBCH = cashaddr.VALID_PREFIXES.indexOf(address.split(':')[0]) > -1;
+  if (isBCH) {
+    const result = cashaddr.decode(address);
+    let network: Network;
+    switch (result.prefix) {
+      case 'bitcoincash':
+        network = networks.bitcoin;
+        break;
+      case 'bchtest':
+        network = networks.testnet;
+        break;
+      case 'bchreg':
+        network = networks.regtest;
+        break;
+    }
+    let version: number;
+    switch (result.type) {
+      case 'P2PKH':
+        version = network!.pubKeyHash;
+        break;
+      case 'P2SH':
+        version = network!.scriptHash;
+        break;
+    }
 
-  // TODO: 4.0.0, move to "toOutputScript"
-  if (payload.length < 21) throw new TypeError(address + ' is too short');
-  if (payload.length > 21) throw new TypeError(address + ' is too long');
+    if (result.hash.length < 20) throw new TypeError(address + ' is too short');
+    if (result.hash.length > 20) throw new TypeError(address + ' is too long');
 
-  const version = payload.readUInt8(0);
-  const hash = payload.slice(1);
+    return {
+      version: version!,
+      hash: Buffer.from(result.hash),
+    };
+  } else {
+    const payload = bs58check.decode(address);
 
-  return { version, hash };
+    // TODO: 4.0.0, move to "toOutputScript"
+    if (payload.length < 21) throw new TypeError(address + ' is too short');
+    if (payload.length > 21) throw new TypeError(address + ' is too long');
+
+    const version = payload.readUInt8(0);
+    const hash = payload.slice(1);
+
+    return { version, hash };
+  }
 }
 
 export function fromBech32(address: string): Bech32Result {
