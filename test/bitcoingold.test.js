@@ -7,6 +7,7 @@ var ECPair = require('../src/ecpair')
 var NETWORKS = require('../src/networks')
 var TransactionBuilder = require('../src/transaction_builder').TransactionBuilder
 var Transaction = require('../src/transaction').Transaction
+var Psbt = require('../src/psbt').Psbt
 
 console.warn = () => {} // Silence the Deprecation Warning
 
@@ -30,20 +31,43 @@ describe('TransactionBuilder', function () {
     txb.setVersion(2)
 
     var hashType = Transaction.SIGHASH_ALL | Transaction.SIGHASH_BITCOINCASHBIP143
+    var hashTypeForPsbt = hashType | (Transaction.FORKID_BTG << 8)
 
     txb.sign(0, keyPair, null, hashType, value)
 
     var tx = txb.build()
-    var hex = tx.toHex()
-    assert.equal(
+    var hexTxb = tx.toHex()
+
+    // Psbt
+    var psbt = new Psbt({ network })
+    var hexPsbt = psbt.addInput({
+        hash: txid,
+        index: vout,
+        sequence: Transaction.DEFAULT_SEQUENCE,
+        witnessUtxo: {
+          script: spk,
+          value,
+        },
+        sighashType: hashTypeForPsbt, // This is how you tell Psbt it is forkid!!!
+      })
+      .addOutput({
+        address: 'GfEHv6hKvAX8HYfFzabMY2eiYDtC9eViqe',
+        value,
+      })
+      .signInput(0, keyPair)
+      .finalizeAllInputs()
+      .extractTransaction()
+      .toHex()
+
+    var result =
       '020000000113aaf49280ba92bddfcbdc30d6c7501c2575e4a80f539236df233f9218a2' +
       'c840000000006b483045022100c594c8e0750b1b6ec4e267b6d6c7098840f86fa9467f' +
       '8aa452f439c3a72e0cd9022019759d800fffd7fcb78d16468f5693ea07a13da33607e0' +
       'e8fbb4cdb5967075b441210201ad6a9a15457b162a71f1d5db8fe27ff001abc4ae3a88' +
       '8214f9407cb0da863cffffffff0100f2052a010000001976a914ea95bd5087d3b5f2df' +
-      '279304a46ad827225c4e8688ac00000000',
-      hex,
-    )
+      '279304a46ad827225c4e8688ac00000000'
+    assert.equal(result, hexTxb)
+    assert.equal(result, hexPsbt)
   })
 
   it('goldtestcase_multisig_1', function () {
