@@ -54,6 +54,8 @@ class TransactionBuilder {
     this.maximumFeeRate = maximumFeeRate;
     this.__PREV_TX_SET = {};
     this.__INPUTS = [];
+    this.__BITCOINCASH = false;
+    this.__BITCOINGOLD = false;
     this.__TX = new transaction_1.Transaction();
     this.__TX.version = 2;
     this.__USE_LOW_R = false;
@@ -65,8 +67,15 @@ class TransactionBuilder {
         'files as well.',
     );
   }
-  static fromTransaction(transaction, network) {
+  static fromTransaction(transaction, network, forkId) {
     const txb = new TransactionBuilder(network);
+    if (typeof forkId === 'number') {
+      if (forkId === transaction_1.Transaction.FORKID_BTG) {
+        txb.enableBitcoinGold(true);
+      } else if (forkId === transaction_1.Transaction.FORKID_BCH) {
+        txb.enableBitcoinCash(true);
+      }
+    }
     // Copy transaction fields
     txb.setVersion(transaction.version);
     txb.setLockTime(transaction.locktime);
@@ -80,13 +89,26 @@ class TransactionBuilder {
         sequence: txIn.sequence,
         script: txIn.script,
         witness: txIn.witness,
+        value: txIn.value,
       });
     });
     // fix some things not possible through the public API
     txb.__INPUTS.forEach((input, i) => {
-      fixMultisigOrder(input, transaction, i);
+      fixMultisigOrder(input, transaction, i, input.value, forkId);
     });
     return txb;
+  }
+  enableBitcoinCash(enable) {
+    if (typeof enable === 'undefined') {
+      enable = true;
+    }
+    this.__BITCOINCASH = enable;
+  }
+  enableBitcoinGold(enable) {
+    if (typeof enable === 'undefined') {
+      enable = true;
+    }
+    this.__BITCOINGOLD = enable;
   }
   setLowR(setting) {
     typeforce(typeforce.maybe(typeforce.Boolean), setting);
@@ -167,6 +189,10 @@ class TransactionBuilder {
         this.__needsOutputs.bind(this),
         this.__TX,
         signParams,
+        {
+          btg: this.__BITCOINGOLD,
+          bch: this.__BITCOINCASH,
+        },
         keyPair,
         redeemScript,
         hashType,
@@ -422,7 +448,7 @@ function expandInput(scriptSig, witnessStack, type, scriptPubKey) {
   };
 }
 // could be done in expandInput, but requires the original Transaction for hashForSignature
-function fixMultisigOrder(input, transaction, vin) {
+function fixMultisigOrder(input, transaction, vin, value, forkId) {
   if (input.redeemScriptType !== SCRIPT_TYPES.P2MS || !input.redeemScript)
     return;
   if (input.pubkeys.length === input.signatures.length) return;
@@ -436,11 +462,41 @@ function fixMultisigOrder(input, transaction, vin) {
       if (!signature) return false;
       // TODO: avoid O(n) hashForSignature
       const parsed = bscript.signature.decode(signature);
-      const hash = transaction.hashForSignature(
-        vin,
-        input.redeemScript,
-        parsed.hashType,
-      );
+      let hash;
+      switch (forkId) {
+        case transaction_1.Transaction.FORKID_BCH:
+          hash = transaction.hashForCashSignature(
+            vin,
+            input.redeemScript,
+            value,
+            parsed.hashType,
+          );
+          break;
+        case transaction_1.Transaction.FORKID_BTG:
+          hash = transaction.hashForGoldSignature(
+            vin,
+            input.redeemScript,
+            value,
+            parsed.hashType,
+          );
+          break;
+        default:
+          if (input.witness) {
+            hash = transaction.hashForWitnessV0(
+              vin,
+              input.redeemScript,
+              value,
+              parsed.hashType,
+            );
+          } else {
+            hash = transaction.hashForSignature(
+              vin,
+              input.redeemScript,
+              parsed.hashType,
+            );
+          }
+          break;
+      }
       // skip if signature does not match pubKey
       if (!keyPair.verify(hash, parsed.signature)) return false;
       // remove matched signature from unmatched
@@ -974,6 +1030,7 @@ function getSigningData(
   needsOutputs,
   tx,
   signParams,
+  forkBools,
   keyPair,
   redeemScript,
   hashType,
@@ -1044,15 +1101,32 @@ function getSigningData(
   }
   // ready to sign
   let signatureHash;
-  if (input.hasWitness) {
-    signatureHash = tx.hashForWitnessV0(
+  if (forkBools.btg) {
+    signatureHash = tx.hashForGoldSignature(
+      vin,
+      input.signScript,
+      input.value,
+      hashType,
+      !!input.witness,
+    );
+  } else if (forkBools.bch) {
+    signatureHash = tx.hashForCashSignature(
       vin,
       input.signScript,
       input.value,
       hashType,
     );
   } else {
-    signatureHash = tx.hashForSignature(vin, input.signScript, hashType);
+    if (input.hasWitness) {
+      signatureHash = tx.hashForWitnessV0(
+        vin,
+        input.signScript,
+        input.value,
+        hashType,
+      );
+    } else {
+      signatureHash = tx.hashForSignature(vin, input.signScript, hashType);
+    }
   }
   return {
     input,

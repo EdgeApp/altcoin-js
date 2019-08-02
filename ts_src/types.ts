@@ -53,6 +53,7 @@ export const maybe = typeforce.maybe;
 export const tuple = typeforce.tuple;
 export const UInt8 = typeforce.UInt8;
 export const UInt32 = typeforce.UInt32;
+export const UInt53 = typeforce.UInt53;
 export const Function = typeforce.Function;
 export const BufferN = typeforce.BufferN;
 export const Null = typeforce.Null;
