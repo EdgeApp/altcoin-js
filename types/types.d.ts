@@ -20,6 +20,7 @@ export declare const maybe: any;
 export declare const tuple: any;
 export declare const UInt8: any;
 export declare const UInt32: any;
+export declare const UInt53: any;
 export declare const Function: any;
 export declare const BufferN: any;
 export declare const Null: any;

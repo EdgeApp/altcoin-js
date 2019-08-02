@@ -52,6 +52,7 @@ exports.maybe = typeforce.maybe;
 exports.tuple = typeforce.tuple;
 exports.UInt8 = typeforce.UInt8;
 exports.UInt32 = typeforce.UInt32;
+exports.UInt53 = typeforce.UInt53;
 exports.Function = typeforce.Function;
 exports.BufferN = typeforce.BufferN;
 exports.Null = typeforce.Null;
