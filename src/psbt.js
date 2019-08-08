@@ -41,6 +41,7 @@ const DEFAULT_OPTS = {
    * It is only here as a last ditch effort to prevent sending a 500 BTC fee etc.
    */
   maximumFeeRate: 5000,
+  forkCoin: 'none',
 };
 /**
  * Psbt class can parse and generate a PSBT binary based off of the BIP174.
@@ -326,6 +327,7 @@ class Psbt {
               inputIndex,
               Object.assign({}, input, { sighashType: sig.hashType }),
               this.__CACHE,
+              this.opts.forkCoin,
             )
           : { hash: hashCache, script: scriptCache };
       sighashCache = sig.hashType;
@@ -464,6 +466,7 @@ class Psbt {
       keyPair.publicKey,
       this.__CACHE,
       sighashTypes,
+      this.opts.forkCoin,
     );
     const partialSig = [
       {
@@ -487,6 +490,7 @@ class Psbt {
         keyPair.publicKey,
         this.__CACHE,
         sighashTypes,
+        this.opts.forkCoin,
       );
       return Promise.resolve(keyPair.sign(hash)).then(signature => {
         const partialSig = [
@@ -844,12 +848,14 @@ function getHashAndSighashType(
   pubkey,
   cache,
   sighashTypes,
+  forkCoin,
 ) {
   const input = utils_1.checkForInput(inputs, inputIndex);
   const { hash, sighashType, script } = getHashForSig(
     inputIndex,
     input,
     cache,
+    forkCoin,
     sighashTypes,
   );
   checkScriptForPubkey(pubkey, script, 'sign');
@@ -858,10 +864,19 @@ function getHashAndSighashType(
     sighashType,
   };
 }
-function getHashForSig(inputIndex, input, cache, sighashTypes) {
+function getDefaultSighash(forkCoin) {
+  switch (forkCoin) {
+    case 'bch':
+      return BCH_SIGHASH_ALL;
+    case 'btg':
+      return BTG_SIGHASH_ALL;
+    case 'none':
+      return transaction_1.Transaction.SIGHASH_ALL;
+  }
+}
+function getHashForSig(inputIndex, input, cache, forkCoin, sighashTypes) {
   const unsignedTx = cache.__TX;
-  const sighashType =
-    input.sighashType || transaction_1.Transaction.SIGHASH_ALL;
+  const sighashType = input.sighashType || getDefaultSighash(forkCoin);
   if (sighashTypes && sighashTypes.indexOf(sighashType) < 0) {
     const str = sighashTypeToString(sighashType);
     throw new Error(

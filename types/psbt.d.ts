@@ -84,9 +84,11 @@ export declare class Psbt {
     addUnknownKeyValToOutput(outputIndex: number, keyVal: KeyValue): this;
     clearFinalizedInput(inputIndex: number): this;
 }
+declare type ForkCoin = 'btg' | 'bch' | 'none';
 interface PsbtOptsOptional {
     network?: Network;
     maximumFeeRate?: number;
+    forkCoin?: ForkCoin;
 }
 interface PsbtInputExtended extends PsbtInput, TransactionInput {
 }
