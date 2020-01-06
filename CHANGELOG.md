@@ -1,3 +1,16 @@
+# 5.1.7
+__fixed__
+- Fixed Transaction class Output interface typing for TypeScript (#1506)
+- Add `weight()` to Block class, add optional includeWitness arg to Transaction byteLength method (#1515)
+- Match the old TransactionBuilder behavior of allowing for multiple instances of the same pubkey to be in a p2ms script for PSBT (#1519)
+
+__added__
+- Allow the API consumer to pass in the finalizer functions to allow for any type of transaction to be finalized. It places the most crucial part of transaction construction on the consumer, and should be used with caution. (#1491)
+
+# 5.1.6
+__fixed__
+- `PsbtOutputExtended` did not support using the address attribute properly. It is now fixed.
+
 # 5.1.5
 __added__
 - `Psbt` now has `getFee(): number` for use when all inputs are finalized. It returns the satoshi fee of the transaction. Calling getFee, getFeeRate, or extractTransaction will cache these values so if you call one after the other, the second call will return immediately.

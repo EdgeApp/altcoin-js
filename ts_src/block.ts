@@ -148,13 +148,19 @@ export class Block {
     return anyTxHasWitness(this.transactions!);
   }
 
-  byteLength(headersOnly: boolean): number {
+  weight(): number {
+    const base = this.byteLength(false, false);
+    const total = this.byteLength(false, true);
+    return base * 3 + total;
+  }
+
+  byteLength(headersOnly?: boolean, allowWitness: boolean = true): number {
     if (headersOnly || !this.transactions) return 80;
 
     return (
       80 +
       varuint.encodingLength(this.transactions.length) +
-      this.transactions.reduce((a, x) => a + x.byteLength(), 0)
+      this.transactions.reduce((a, x) => a + x.byteLength(allowWitness), 0)
     );
   }
 
@@ -174,7 +180,7 @@ export class Block {
   }
 
   // TODO: buffer, offset compatibility
-  toBuffer(headersOnly: boolean): Buffer {
+  toBuffer(headersOnly?: boolean): Buffer {
     const buffer: Buffer = Buffer.allocUnsafe(this.byteLength(headersOnly));
 
     let offset: number = 0;
@@ -213,7 +219,7 @@ export class Block {
     return buffer;
   }
 
-  toHex(headersOnly: boolean): string {
+  toHex(headersOnly?: boolean): string {
     return this.toBuffer(headersOnly).toString('hex');
   }
 

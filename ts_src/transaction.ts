@@ -36,26 +36,19 @@ const ONE: Buffer = Buffer.from(
   'hex',
 );
 const VALUE_UINT64_MAX: Buffer = Buffer.from('ffffffffffffffff', 'hex');
-const BLANK_OUTPUT: BlankOutput = {
+const BLANK_OUTPUT = {
   script: EMPTY_SCRIPT,
   valueBuffer: VALUE_UINT64_MAX,
 };
 
-function isOutput(out: Output | BlankOutput): out is Output {
-  return (out as Output).value !== undefined;
-}
-
-export interface BlankOutput {
-  script: Buffer;
-  valueBuffer: Buffer;
+function isOutput(out: Output): boolean {
+  return out.value !== undefined;
 }
 
 export interface Output {
   script: Buffer;
   value: number;
 }
-
-type OpenOutput = Output | BlankOutput;
 
 export interface Input {
   hash: Buffer;
@@ -188,7 +181,7 @@ export class Transaction {
   version: number = 1;
   locktime: number = 0;
   ins: Input[] = [];
-  outs: OpenOutput[] = [];
+  outs: Output[] = [];
 
   isCoinbase(): boolean {
     return (
@@ -247,8 +240,8 @@ export class Transaction {
   }
 
   weight(): number {
-    const base = this.__byteLength(false);
-    const total = this.__byteLength(true);
+    const base = this.byteLength(false);
+    const total = this.byteLength(true);
     return base * 3 + total;
   }
 
@@ -256,8 +249,25 @@ export class Transaction {
     return Math.ceil(this.weight() / 4);
   }
 
-  byteLength(): number {
-    return this.__byteLength(true);
+  byteLength(_ALLOW_WITNESS: boolean = true): number {
+    const hasWitnesses = _ALLOW_WITNESS && this.hasWitnesses();
+
+    return (
+      (hasWitnesses ? 10 : 8) +
+      varuint.encodingLength(this.ins.length) +
+      varuint.encodingLength(this.outs.length) +
+      this.ins.reduce((sum, input) => {
+        return sum + 40 + varSliceSize(input.script);
+      }, 0) +
+      this.outs.reduce((sum, output) => {
+        return sum + 8 + varSliceSize(output.script);
+      }, 0) +
+      (hasWitnesses
+        ? this.ins.reduce((sum, input) => {
+            return sum + vectorSize(input.witness);
+          }, 0)
+        : 0)
+    );
   }
 
   clone(): Transaction {
@@ -278,7 +288,7 @@ export class Transaction {
     newTx.outs = this.outs.map(txOut => {
       return {
         script: txOut.script,
-        value: (txOut as Output).value,
+        value: txOut.value,
       };
     });
 
@@ -336,7 +346,7 @@ export class Transaction {
 
       // "blank" outputs before
       for (let i = 0; i < inIndex; i++) {
-        txTmp.outs[i] = BLANK_OUTPUT;
+        (txTmp.outs as any)[i] = BLANK_OUTPUT;
       }
 
       // ignore sequence numbers (except at inIndex)
@@ -362,7 +372,7 @@ export class Transaction {
     }
 
     // serialize and hash
-    const buffer: Buffer = Buffer.allocUnsafe(txTmp.__byteLength(false) + 4);
+    const buffer: Buffer = Buffer.allocUnsafe(txTmp.byteLength(false) + 4);
     buffer.writeInt32LE(hashType, buffer.length - 4);
     txTmp.__toBuffer(buffer, 0, false);
 
@@ -448,7 +458,7 @@ export class Transaction {
       toffset = 0;
 
       this.outs.forEach(out => {
-        writeUInt64((out as Output).value);
+        writeUInt64(out.value);
         writeVarSlice(out.script);
       });
 
@@ -461,7 +471,7 @@ export class Transaction {
 
       tbuffer = Buffer.allocUnsafe(8 + varSliceSize(output.script));
       toffset = 0;
-      writeUInt64((output as Output).value);
+      writeUInt64(output.value);
       writeVarSlice(output.script);
 
       hashOutputs = bcrypto.hash256(tbuffer);
@@ -604,34 +614,13 @@ export class Transaction {
     this.ins[index].witness = witness;
   }
 
-  private __byteLength(_ALLOW_WITNESS: boolean): number {
-    const hasWitnesses = _ALLOW_WITNESS && this.hasWitnesses();
-
-    return (
-      (hasWitnesses ? 10 : 8) +
-      varuint.encodingLength(this.ins.length) +
-      varuint.encodingLength(this.outs.length) +
-      this.ins.reduce((sum, input) => {
-        return sum + 40 + varSliceSize(input.script);
-      }, 0) +
-      this.outs.reduce((sum, output) => {
-        return sum + 8 + varSliceSize(output.script);
-      }, 0) +
-      (hasWitnesses
-        ? this.ins.reduce((sum, input) => {
-            return sum + vectorSize(input.witness);
-          }, 0)
-        : 0)
-    );
-  }
-
   private __toBuffer(
     buffer?: Buffer,
     initialOffset?: number,
-    _ALLOW_WITNESS?: boolean,
+    _ALLOW_WITNESS: boolean = false,
   ): Buffer {
     if (!buffer)
-      buffer = Buffer.allocUnsafe(this.__byteLength(_ALLOW_WITNESS!)) as Buffer;
+      buffer = Buffer.allocUnsafe(this.byteLength(_ALLOW_WITNESS)) as Buffer;
 
     let offset = initialOffset || 0;
 
@@ -693,7 +682,7 @@ export class Transaction {
       if (isOutput(txOut)) {
         writeUInt64(txOut.value);
       } else {
-        writeSlice(txOut.valueBuffer);
+        writeSlice((txOut as any).valueBuffer);
       }
 
       writeVarSlice(txOut.script);

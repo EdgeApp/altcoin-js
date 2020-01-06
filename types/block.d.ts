@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import { Transaction } from './transaction';
 export declare class Block {
     static fromBuffer(buffer: Buffer): Block;
@@ -16,12 +15,13 @@ export declare class Block {
     getWitnessCommit(): Buffer | null;
     hasWitnessCommit(): boolean;
     hasWitness(): boolean;
-    byteLength(headersOnly: boolean): number;
+    weight(): number;
+    byteLength(headersOnly?: boolean, allowWitness?: boolean): number;
     getHash(): Buffer;
     getId(): string;
     getUTCDate(): Date;
-    toBuffer(headersOnly: boolean): Buffer;
-    toHex(headersOnly: boolean): string;
+    toBuffer(headersOnly?: boolean): Buffer;
+    toHex(headersOnly?: boolean): string;
     checkTxRoots(): boolean;
     checkProofOfWork(): boolean;
     private __checkMerkleRoot;

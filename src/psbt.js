@@ -159,6 +159,17 @@ class Psbt {
     return this;
   }
   addInput(inputData) {
+    if (
+      arguments.length > 1 ||
+      !inputData ||
+      inputData.hash === undefined ||
+      inputData.index === undefined
+    ) {
+      throw new Error(
+        `Invalid arguments for Psbt.addInput. ` +
+          `Requires single object with at least [hash] and [index]`,
+      );
+    }
     checkInputsForPartialSig(this.data.inputs, 'addInput');
     const c = this.__CACHE;
     this.data.addInput(inputData);
@@ -179,6 +190,17 @@ class Psbt {
     return this;
   }
   addOutput(outputData) {
+    if (
+      arguments.length > 1 ||
+      !outputData ||
+      outputData.value === undefined ||
+      (outputData.address === undefined && outputData.script === undefined)
+    ) {
+      throw new Error(
+        `Invalid arguments for Psbt.addOutput. ` +
+          `Requires single object with at least [script or address] and [value]`,
+      );
+    }
     checkInputsForPartialSig(this.data.inputs, 'addOutput');
     const { address } = outputData;
     if (typeof address === 'string') {
@@ -220,7 +242,7 @@ class Psbt {
     range(this.data.inputs.length).forEach(idx => this.finalizeInput(idx));
     return this;
   }
-  finalizeInput(inputIndex) {
+  finalizeInput(inputIndex, finalScriptsFunc = getFinalScripts) {
     const input = utils_1.checkForInput(this.data.inputs, inputIndex);
     const { script, isP2SH, isP2WSH, isSegwit } = getScriptFromInput(
       inputIndex,
@@ -228,14 +250,11 @@ class Psbt {
       this.__CACHE,
     );
     if (!script) throw new Error(`No script found for input #${inputIndex}`);
-    const scriptType = classifyScript(script);
-    if (!canFinalize(input, script, scriptType))
-      throw new Error(`Can not finalize input #${inputIndex}`);
     checkPartialSigSighashes(input);
-    const { finalScriptSig, finalScriptWitness } = getFinalScripts(
+    const { finalScriptSig, finalScriptWitness } = finalScriptsFunc(
+      inputIndex,
+      input,
       script,
-      scriptType,
-      input.partialSig,
       isSegwit,
       isP2SH,
       isP2WSH,
@@ -562,15 +581,27 @@ function canFinalize(input, script, scriptType) {
       return hasSigs(1, input.partialSig);
     case 'multisig':
       const p2ms = payments.p2ms({ output: script });
-      return hasSigs(p2ms.m, input.partialSig);
+      return hasSigs(p2ms.m, input.partialSig, p2ms.pubkeys);
     default:
       return false;
   }
 }
-function hasSigs(neededSigs, partialSig) {
+function hasSigs(neededSigs, partialSig, pubkeys) {
   if (!partialSig) return false;
-  if (partialSig.length > neededSigs) throw new Error('Too many signatures');
-  return partialSig.length === neededSigs;
+  let sigs;
+  if (pubkeys) {
+    sigs = pubkeys
+      .map(pkey => {
+        const pubkey = ecpair_1.fromPublicKey(pkey, { compressed: true })
+          .publicKey;
+        return partialSig.find(pSig => pSig.pubkey.equals(pubkey));
+      })
+      .filter(v => !!v);
+  } else {
+    sigs = partialSig;
+  }
+  if (sigs.length > neededSigs) throw new Error('Too many signatures');
+  return sigs.length === neededSigs;
 }
 function isFinalized(input) {
   return !!input.finalScriptSig || !!input.finalScriptWitness;
@@ -732,7 +763,20 @@ function getTxCacheValue(key, name, inputs, c) {
   if (key === '__FEE_RATE') return c.__FEE_RATE;
   else if (key === '__FEE') return c.__FEE;
 }
-function getFinalScripts(
+function getFinalScripts(inputIndex, input, script, isSegwit, isP2SH, isP2WSH) {
+  const scriptType = classifyScript(script);
+  if (!canFinalize(input, script, scriptType))
+    throw new Error(`Can not finalize input #${inputIndex}`);
+  return prepareFinalScripts(
+    script,
+    scriptType,
+    input.partialSig,
+    isSegwit,
+    isP2SH,
+    isP2WSH,
+  );
+}
+function prepareFinalScripts(
   script,
   scriptType,
   partialSig,

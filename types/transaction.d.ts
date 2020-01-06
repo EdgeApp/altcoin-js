@@ -1,13 +1,7 @@
-/// <reference types="node" />
-export interface BlankOutput {
-    script: Buffer;
-    valueBuffer: Buffer;
-}
 export interface Output {
     script: Buffer;
     value: number;
 }
-declare type OpenOutput = Output | BlankOutput;
 export interface Input {
     hash: Buffer;
     index: number;
@@ -32,14 +26,14 @@ export declare class Transaction {
     version: number;
     locktime: number;
     ins: Input[];
-    outs: OpenOutput[];
+    outs: Output[];
     isCoinbase(): boolean;
     addInput(hash: Buffer, index: number, sequence?: number, scriptSig?: Buffer): number;
     addOutput(scriptPubKey: Buffer, value: number): number;
     hasWitnesses(): boolean;
     weight(): number;
     virtualSize(): number;
-    byteLength(): number;
+    byteLength(_ALLOW_WITNESS?: boolean): number;
     clone(): Transaction;
     /**
      * Hash transaction for signing a specific input.
@@ -65,7 +59,5 @@ export declare class Transaction {
     toHex(): string;
     setInputScript(index: number, scriptSig: Buffer): void;
     setWitness(index: number, witness: Buffer[]): void;
-    private __byteLength;
     private __toBuffer;
 }
-export {};

@@ -1,4 +1,3 @@
-/// <reference types="node" />
 declare const types: {
     P2MS: string;
     NONSTANDARD: string;
@@ -11,6 +10,6 @@ declare const types: {
     WITNESS_COMMITMENT: string;
 };
 declare function classifyOutput(script: Buffer): string;
-declare function classifyInput(script: Buffer, allowIncomplete: boolean): string;
-declare function classifyWitness(script: Buffer[], allowIncomplete: boolean): string;
+declare function classifyInput(script: Buffer, allowIncomplete?: boolean): string;
+declare function classifyWitness(script: Buffer[], allowIncomplete?: boolean): string;
 export { classifyInput as input, classifyOutput as output, classifyWitness as witness, types, };
