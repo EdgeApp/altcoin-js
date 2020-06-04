@@ -113,6 +113,38 @@ class Psbt {
   get inputCount() {
     return this.data.inputs.length;
   }
+  get version() {
+    return this.__CACHE.__TX.version;
+  }
+  set version(version) {
+    this.setVersion(version);
+  }
+  get locktime() {
+    return this.__CACHE.__TX.locktime;
+  }
+  set locktime(locktime) {
+    this.setLocktime(locktime);
+  }
+  get txInputs() {
+    return this.__CACHE.__TX.ins.map(input => ({
+      hash: bufferutils_1.cloneBuffer(input.hash),
+      index: input.index,
+      sequence: input.sequence,
+    }));
+  }
+  get txOutputs() {
+    return this.__CACHE.__TX.outs.map(output => {
+      let address;
+      try {
+        address = address_1.fromOutputScript(output.script, this.opts.network);
+      } catch (_) {}
+      return {
+        script: bufferutils_1.cloneBuffer(output.script),
+        value: output.value,
+        address,
+      };
+    });
+  }
   combine(...those) {
     this.data.combine(...those.map(o => o.data));
     return this;
@@ -449,9 +481,9 @@ class Psbt {
     return this;
   }
   signInputAsync(inputIndex, keyPair, sighashTypes = DEFAULT_SIGHASHES) {
-    return new Promise((resolve, reject) => {
+    return Promise.resolve().then(() => {
       if (!keyPair || !keyPair.publicKey)
-        return reject(new Error('Need Signer to sign input'));
+        throw new Error('Need Signer to sign input');
       const { hash, sighashType } = getHashAndSighashType(
         this.data.inputs,
         inputIndex,
@@ -460,7 +492,7 @@ class Psbt {
         sighashTypes,
         this.opts.forkCoin,
       );
-      Promise.resolve(keyPair.sign(hash)).then(signature => {
+      return Promise.resolve(keyPair.sign(hash)).then(signature => {
         const partialSig = [
           {
             pubkey: keyPair.publicKey,
@@ -468,7 +500,6 @@ class Psbt {
           },
         ];
         this.data.updateInput(inputIndex, { partialSig });
-        resolve();
       });
     });
   }
