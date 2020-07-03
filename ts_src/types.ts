@@ -35,9 +35,9 @@ export const Network = typeforce.compile({
     public: typeforce.UInt32,
     private: typeforce.UInt32,
   },
-  pubKeyHash: typeforce.UInt8,
-  scriptHash: typeforce.UInt8,
-  wif: typeforce.UInt8,
+  pubKeyHash: typeforce.UInt16,
+  scriptHash: typeforce.UInt16,
+  wif: typeforce.UInt16,
 });
 
 export const Buffer256bit = typeforce.BufferN(32);
