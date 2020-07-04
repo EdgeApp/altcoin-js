@@ -5,6 +5,7 @@ const ecc = require('tiny-secp256k1');
 const randomBytes = require('randombytes');
 const typeforce = require('typeforce');
 const wif = require('wif');
+const bs58check = require('bs58check');
 
 const isOptions = typeforce.maybe(
   typeforce.compile({
@@ -116,9 +117,56 @@ function fromPublicKey(buffer: Buffer, options?: ECPairOptions): ECPair {
   return new ECPair(undefined, buffer, options);
 }
 
+function wifDecode(wifString: string, version: number): any {
+  const buffer = bs58check.decode(wifString);
+  if (version < 256) {
+    if (buffer.length === 33) {
+      return {
+        version: buffer[0],
+        privateKey: buffer.slice(1, 33),
+        compressed: false,
+      };
+    }
+    // invalid length
+    if (buffer.length !== 34) throw new Error('Invalid WIF length');
+    // invalid compression flag
+    if (buffer[33] !== 0x01) throw new Error('Invalid compression flag');
+    return {
+      version: buffer[0],
+      privateKey: buffer.slice(1, 33),
+      compressed: true,
+    };
+  }
+  // extra case for two byte WIF versions
+  if (buffer.length === 34) {
+    return {
+      version: buffer.readUInt16LE(0, 2),
+      privateKey: buffer.slice(2, 34),
+      compressed: false,
+    };
+  }
+  // invalid length
+  if (buffer.length !== 35) throw new Error('Invalid WIF length');
+  // invalid compression flag
+  if (buffer[34] !== 0x01) throw new Error('Invalid compression flag');
+  return {
+    version: buffer.readUint16LE(0, 2),
+    privateKey: buffer.slice(2, 34),
+    compressed: true,
+  };
+}
+
 function fromWIF(wifString: string, network?: Network | Network[]): ECPair {
-  const decoded = wif.decode(wifString);
-  const version = decoded.version;
+  let decoded: any;
+  let version: any;
+
+  if (types.Array(network) === false && typeof network !== 'undefined') {
+    decoded = wifDecode(wifString, (network as Network).wif);
+    version = decoded.version;
+  } else {
+    decoded = wif.decode(wifString);
+    version = decoded.version;
+  }
 
   // list of networks?
   if (types.Array(network)) {
