@@ -113,9 +113,10 @@ function wifDecode(wifString, version) {
 function fromWIF(wifString, network) {
   let decoded;
   let version;
-  if (types.Array(network) === false && typeof network !== 'undefined') {
+  if (!types.Array(network) && typeof network !== 'undefined') {
     decoded = wifDecode(wifString, network.wif);
     version = decoded.version;
+    console.log(decoded);
   } else {
     decoded = wif.decode(wifString);
     version = decoded.version;

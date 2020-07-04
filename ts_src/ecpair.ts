@@ -160,9 +160,10 @@ function fromWIF(wifString: string, network?: Network | Network[]): ECPair {
   let decoded: any;
   let version: any;
 
-  if (types.Array(network) === false && typeof network !== 'undefined') {
+  if (!types.Array(network) && typeof network !== 'undefined') {
     decoded = wifDecode(wifString, (network as Network).wif);
     version = decoded.version;
+    console.log(decoded);
   } else {
     decoded = wif.decode(wifString);
     version = decoded.version;
