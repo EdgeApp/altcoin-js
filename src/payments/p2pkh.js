@@ -31,7 +31,7 @@ function p2pkh(a, opts) {
     let version = payload.readUInt8(0);
     let hash = payload.slice(1);
     if (network.pubKeyHash > 255) {
-      version = payload.readUInt16BE(0);
+      version = payload.readUInt16LE(0);
       hash = payload.slice(2);
     }
     return { version, hash };
@@ -47,7 +47,7 @@ function p2pkh(a, opts) {
     if (network.pubKeyHash < 256) {
       payload.writeUInt8(network.pubKeyHash, 0);
     } else {
-      payload.writeUInt16BE(network.pubKeyHash, 0);
+      payload.writeUInt16LE(network.pubKeyHash, 0);
     }
     o.hash.copy(payload, 1);
     return bs58check.encode(payload);
