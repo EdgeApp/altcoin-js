@@ -1,4 +1,5 @@
 const createHash = require('create-hash');
+const cryptoB = require('crypto-browserify');
 
 export function ripemd160(buffer: Buffer): Buffer {
   try {
@@ -20,6 +21,21 @@ export function sha1(buffer: Buffer): Buffer {
 
 export function sha256(buffer: Buffer): Buffer {
   return createHash('sha256')
+    .update(buffer)
+    .digest();
+}
+
+export function blakeHash160(buffer: Buffer): Buffer {
+  return ripemd160(blake256(buffer));
+}
+
+export function doubleblake256(buffer: Buffer): Buffer {
+  return blake256(blake256(buffer));
+}
+
+export function blake256(buffer: Buffer): Buffer {
+  return cryptoB
+    .createHash('blake256')
     .update(buffer)
     .digest();
 }

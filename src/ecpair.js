@@ -1,5 +1,7 @@
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
+const base58 = require('./base58/base');
+const crypto = require('./crypto');
 const NETWORKS = require('./networks');
 const types = require('./types');
 const ecc = require('tiny-secp256k1');
@@ -73,29 +75,34 @@ function fromPublicKey(buffer, options) {
 }
 exports.fromPublicKey = fromPublicKey;
 function wifDecode(wifString, version) {
-  const buffer = bs58check.decode(wifString);
+  console.log(version);
   if (version < 256) {
-    if (buffer.length === 33) {
+    const bsBuffer = bs58check.decode(wifString);
+    if (bsBuffer.length === 33) {
       return {
-        version: buffer[0],
-        privateKey: buffer.slice(1, 33),
+        version: bsBuffer[0],
+        privateKey: bsBuffer.slice(1, 33),
         compressed: false,
       };
     }
     // invalid length
-    if (buffer.length !== 34) throw new Error('Invalid WIF length');
+    if (bsBuffer.length !== 34) throw new Error('Invalid WIF length');
     // invalid compression flag
-    if (buffer[33] !== 0x01) throw new Error('Invalid compression flag');
+    if (bsBuffer[33] !== 0x01) throw new Error('Invalid compression flag');
     return {
-      version: buffer[0],
-      privateKey: buffer.slice(1, 33),
+      version: bsBuffer[0],
+      privateKey: bsBuffer.slice(1, 33),
       compressed: true,
     };
   }
+  // long version bytes use blake hash for bs58 check encoding
+  // const bs58checkBlake = bs58checkBase(crypto.doubleblake256)
+  // const buffer = bs58checkBlake.decode(wifString, crypto.doubleblake256);
+  const buffer = base58.base58Base(crypto.doubleblake256).decode(wifString);
   // extra case for two byte WIF versions
   if (buffer.length === 34) {
     return {
-      version: buffer.readUInt16LE(0, 2),
+      version: buffer.readUInt16LE(1),
       privateKey: buffer.slice(2, 34),
       compressed: false,
     };
@@ -105,7 +112,7 @@ function wifDecode(wifString, version) {
   // invalid compression flag
   if (buffer[34] !== 0x01) throw new Error('Invalid compression flag');
   return {
-    version: buffer.readUint16LE(0, 2),
+    version: buffer.readUInt16LE(1),
     privateKey: buffer.slice(2, 34),
     compressed: true,
   };
@@ -116,7 +123,6 @@ function fromWIF(wifString, network) {
   if (!types.Array(network) && typeof network !== 'undefined') {
     decoded = wifDecode(wifString, network.wif);
     version = decoded.version;
-    console.log(decoded);
   } else {
     decoded = wif.decode(wifString);
     version = decoded.version;

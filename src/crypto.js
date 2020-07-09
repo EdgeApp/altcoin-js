@@ -1,6 +1,7 @@
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
 const createHash = require('create-hash');
+const cryptoB = require('crypto-browserify');
 function ripemd160(buffer) {
   try {
     return createHash('rmd160')
@@ -25,6 +26,21 @@ function sha256(buffer) {
     .digest();
 }
 exports.sha256 = sha256;
+function blakeHash160(buffer) {
+  return ripemd160(blake256(buffer));
+}
+exports.blakeHash160 = blakeHash160;
+function doubleblake256(buffer) {
+  return blake256(blake256(buffer));
+}
+exports.doubleblake256 = doubleblake256;
+function blake256(buffer) {
+  return cryptoB
+    .createHash('blake256')
+    .update(buffer)
+    .digest();
+}
+exports.blake256 = blake256;
 function hash160(buffer) {
   return ripemd160(sha256(buffer));
 }
