@@ -72,8 +72,13 @@ class ECPair implements ECPairInterface {
     return this.__Q;
   }
 
-  toWIF(): string {
+  toWIF(
+    wifEncodeFunc?: (prefix: any, key: any, compressed: any) => string,
+  ): string {
     if (!this.__D) throw new Error('Missing private key');
+    if (typeof wifEncodeFunc !== 'undefined') {
+      return wifEncodeFunc(this.network.wif, this.__D, this.compressed);
+    }
     return wif.encode(this.network.wif, this.__D, this.compressed);
   }
 
@@ -123,7 +128,12 @@ function wifDecode(
   bs58DecodeFunc?: (wifString: string) => any,
 ): any {
   if (version < 256) {
-    const buffer = bs58check.decode(wifString);
+    let buffer: any;
+    if (typeof bs58DecodeFunc !== 'undefined') {
+      buffer = bs58DecodeFunc(wifString);
+    } else {
+      buffer = bs58check.decode(wifString);
+    }
     if (buffer.length === 33) {
       return {
         version: buffer[0],
@@ -168,12 +178,16 @@ function wifDecode(
   };
 }
 
-function fromWIF(wifString: string, network?: Network | Network[]): ECPair {
+function fromWIF(
+  wifString: string,
+  network?: Network | Network[],
+  bs58DecodeFunc?: (wif: string) => any,
+): ECPair {
   let decoded: any;
   let version: any;
 
   if (!types.Array(network) && typeof network !== 'undefined') {
-    decoded = wifDecode(wifString, (network as Network).wif);
+    decoded = wifDecode(wifString, (network as Network).wif, bs58DecodeFunc);
     version = decoded.version;
   } else {
     decoded = wif.decode(wifString);

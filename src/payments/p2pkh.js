@@ -27,7 +27,12 @@ function p2pkh(a, opts) {
     a,
   );
   const _address = lazy.value(() => {
-    const payload = bs58check.decode(a.address);
+    let payload;
+    if (typeof a.bs58DecodeFunc === 'undefined') {
+      payload = bs58check.decode(a.address);
+    } else {
+      payload = a.bs58DecodeFunc(a.address);
+    }
     let version = payload.readUInt8(0);
     let hash = payload.slice(1);
     if (network.pubKeyHash > 255) {
@@ -50,6 +55,9 @@ function p2pkh(a, opts) {
       payload.writeUInt16LE(network.pubKeyHash, 0);
     }
     o.hash.copy(payload, 1);
+    if (typeof a.bs58EncodeFunc !== 'undefined') {
+      return a.bs58EncodeFunc(payload);
+    }
     return bs58check.encode(payload);
   });
   lazy.prop(o, 'hash', () => {

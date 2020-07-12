@@ -23,6 +23,8 @@ export interface Payment {
   hash?: Buffer;
   redeem?: Payment;
   witness?: Buffer[];
+  bs58EncodeFunc?: (payload: Buffer | undefined) => string;
+  bs58DecodeFunc?: (address: string | undefined) => any;
 }
 
 export type PaymentCreator = (a: Payment, opts?: PaymentOpts) => Payment;
