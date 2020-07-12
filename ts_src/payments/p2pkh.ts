@@ -31,7 +31,12 @@ export function p2pkh(a: Payment, opts?: PaymentOpts): Payment {
   );
 
   const _address = lazy.value(() => {
-    const payload = bs58check.decode(a.address);
+    let payload: any;
+    if (typeof a.bs58DecodeFunc === 'undefined') {
+      payload = bs58check.decode(a.address);
+    } else {
+      payload = a.bs58DecodeFunc(a.address);
+    }
     let version = payload.readUInt8(0);
     let hash = payload.slice(1);
     if (network.pubKeyHash > 255) {
@@ -57,6 +62,9 @@ export function p2pkh(a: Payment, opts?: PaymentOpts): Payment {
       payload.writeUInt16LE(network.pubKeyHash, 0);
     }
     o.hash.copy(payload, 1);
+    if (typeof a.bs58EncodeFunc !== 'undefined') {
+      return a.bs58EncodeFunc(payload);
+    }
     return bs58check.encode(payload);
   });
   lazy.prop(o, 'hash', () => {

@@ -43,7 +43,12 @@ function p2sh(a, opts) {
   }
   const o = { network };
   const _address = lazy.value(() => {
-    const payload = bs58check.decode(a.address);
+    let payload;
+    if (typeof a.bs58DecodeFunc !== 'undefined') {
+      payload = a.bs58DecodeFunc(a.address);
+    } else {
+      payload = bs58check.decode(a.address);
+    }
     const version = payload.readUInt8(0);
     const hash = payload.slice(1);
     return { version, hash };
@@ -66,6 +71,9 @@ function p2sh(a, opts) {
     const payload = Buffer.allocUnsafe(21);
     payload.writeUInt8(o.network.scriptHash, 0);
     o.hash.copy(payload, 1);
+    if (typeof a.bs58EncodeFunc !== 'undefined') {
+      return a.bs58EncodeFunc(payload);
+    }
     return bs58check.encode(payload);
   });
   lazy.prop(o, 'hash', () => {

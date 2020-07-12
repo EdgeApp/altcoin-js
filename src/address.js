@@ -8,7 +8,7 @@ const types = require('./types');
 const bech32 = require('bech32');
 const bs58check = require('bs58check');
 const typeforce = require('typeforce');
-function fromBase58Check(address) {
+function fromBase58Check(address, bs58DecodeFunc) {
   const isBCH = cashaddr.VALID_PREFIXES.indexOf(address.split(':')[0]) > -1;
   if (isBCH) {
     const result = cashaddr.decode(address);
@@ -40,7 +40,12 @@ function fromBase58Check(address) {
       hash: Buffer.from(result.hash),
     };
   } else {
-    const payload = bs58check.decode(address);
+    let payload;
+    if (typeof bs58DecodeFunc !== 'undefined') {
+      payload = bs58DecodeFunc(address);
+    } else {
+      payload = bs58check.decode(address);
+    }
     // TODO: 4.0.0, move to "toOutputScript"
     if (payload.length < 21) throw new TypeError(address + ' is too short');
     if (payload.length > 21) throw new TypeError(address + ' is too long');
@@ -60,11 +65,14 @@ function fromBech32(address) {
   };
 }
 exports.fromBech32 = fromBech32;
-function toBase58Check(hash, version) {
+function toBase58Check(hash, version, bs58EncodeFunc) {
   typeforce(types.tuple(types.Hash160bit, types.UInt8), arguments);
   const payload = Buffer.allocUnsafe(21);
   payload.writeUInt8(version, 0);
   hash.copy(payload, 1);
+  if (typeof bs58EncodeFunc !== 'undefined') {
+    return bs58EncodeFunc(payload);
+  }
   return bs58check.encode(payload);
 }
 exports.toBase58Check = toBase58Check;
