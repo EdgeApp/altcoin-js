@@ -100,7 +100,6 @@ function p2pkh(a, opts) {
     let hash = Buffer.from([]);
     if (a.address) {
       if (_address().version !== network.pubKeyHash) {
-        console.log(_address().version, network.pubKeyHash);
         throw new TypeError('Invalid version or Network mismatch');
       }
       if (_address().hash.length !== 20) throw new TypeError('Invalid address');
