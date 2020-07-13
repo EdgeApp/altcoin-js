@@ -1,5 +1,3 @@
-import * as base58 from './base58/base';
-import * as crypto from './crypto';
 import { Network } from './networks';
 import * as NETWORKS from './networks';
 import * as types from './types';
@@ -129,7 +127,6 @@ function wifDecode(
   version: number,
   bs58DecodeFunc?: (wifString: string) => any,
 ): any {
-  console.log(version);
   if (version < 256) {
     let bsBuffer: any;
     if (typeof bs58DecodeFunc !== 'undefined') {
@@ -156,9 +153,12 @@ function wifDecode(
   }
 
   // long version bytes use blake hash for bs58 check encoding
-  // const bs58checkBlake = bs58checkBase(crypto.doubleblake256)
-  // const buffer = bs58checkBlake.decode(wifString, crypto.doubleblake256);
-  const buffer = base58.base58Base(crypto.doubleblake256).decode(wifString);
+  let buffer: Buffer;
+  if (typeof bs58DecodeFunc !== 'undefined') {
+    buffer = bs58DecodeFunc(wifString);
+  } else {
+    buffer = bs58check.decode(wifString);
+  }
   // extra case for two byte WIF versions
   if (buffer.length === 34) {
     return {

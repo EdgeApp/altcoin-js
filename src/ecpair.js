@@ -1,7 +1,5 @@
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
-const base58 = require('./base58/base');
-const crypto = require('./crypto');
 const NETWORKS = require('./networks');
 const types = require('./types');
 const ecc = require('tiny-secp256k1');
@@ -78,7 +76,6 @@ function fromPublicKey(buffer, options) {
 }
 exports.fromPublicKey = fromPublicKey;
 function wifDecode(wifString, version, bs58DecodeFunc) {
-  console.log(version);
   if (version < 256) {
     let bsBuffer;
     if (typeof bs58DecodeFunc !== 'undefined') {
@@ -104,9 +101,12 @@ function wifDecode(wifString, version, bs58DecodeFunc) {
     };
   }
   // long version bytes use blake hash for bs58 check encoding
-  // const bs58checkBlake = bs58checkBase(crypto.doubleblake256)
-  // const buffer = bs58checkBlake.decode(wifString, crypto.doubleblake256);
-  const buffer = base58.base58Base(crypto.doubleblake256).decode(wifString);
+  let buffer;
+  if (typeof bs58DecodeFunc !== 'undefined') {
+    buffer = bs58DecodeFunc(wifString);
+  } else {
+    buffer = bs58check.decode(wifString);
+  }
   // extra case for two byte WIF versions
   if (buffer.length === 34) {
     return {
