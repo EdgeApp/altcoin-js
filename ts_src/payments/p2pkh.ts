@@ -39,8 +39,8 @@ export function p2pkh(a: Payment, opts?: PaymentOpts): Payment {
     }
     let version = payload.readUInt8(0);
     let hash = payload.slice(1);
-    if (network.pubKeyHash > 255) {
-      version = payload.readUInt16LE(0);
+    if (network.pubKeyHash > 128) {
+      version = payload.readUInt16BE(0);
       hash = payload.slice(2);
     }
     return { version, hash };
@@ -54,14 +54,16 @@ export function p2pkh(a: Payment, opts?: PaymentOpts): Payment {
 
   lazy.prop(o, 'address', () => {
     if (!o.hash) return;
-
-    const payload = Buffer.allocUnsafe(21);
+    let payload: Buffer;
     if (network.pubKeyHash < 256) {
+      payload = Buffer.allocUnsafe(21);
       payload.writeUInt8(network.pubKeyHash, 0);
+      o.hash.copy(payload, 1);
     } else {
-      payload.writeUInt16LE(network.pubKeyHash, 0);
+      payload = Buffer.allocUnsafe(22);
+      payload.writeUInt16BE(network.pubKeyHash, 0);
+      o.hash.copy(payload, 2);
     }
-    o.hash.copy(payload, 1);
     if (typeof a.bs58EncodeFunc !== 'undefined') {
       return a.bs58EncodeFunc(payload);
     }
@@ -104,8 +106,9 @@ export function p2pkh(a: Payment, opts?: PaymentOpts): Payment {
   if (opts.validate) {
     let hash: Buffer = Buffer.from([]);
     if (a.address) {
-      if (_address().version !== network.pubKeyHash)
+      if (_address().version !== network.pubKeyHash) {
         throw new TypeError('Invalid version or Network mismatch');
+      }
       if (_address().hash.length !== 20) throw new TypeError('Invalid address');
       hash = _address().hash;
     }
