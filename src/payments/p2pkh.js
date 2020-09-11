@@ -27,9 +27,18 @@ function p2pkh(a, opts) {
     a,
   );
   const _address = lazy.value(() => {
-    const payload = bs58check.decode(a.address);
-    const version = payload.readUInt8(0);
-    const hash = payload.slice(1);
+    let payload;
+    if (typeof a.bs58DecodeFunc === 'undefined') {
+      payload = bs58check.decode(a.address);
+    } else {
+      payload = a.bs58DecodeFunc(a.address);
+    }
+    let version = payload.readUInt8(0);
+    let hash = payload.slice(1);
+    if (network.pubKeyHash > 128) {
+      version = payload.readUInt16BE(0);
+      hash = payload.slice(2);
+    }
     return { version, hash };
   });
   const _chunks = lazy.value(() => {
@@ -39,9 +48,19 @@ function p2pkh(a, opts) {
   const o = { name: 'p2pkh', network };
   lazy.prop(o, 'address', () => {
     if (!o.hash) return;
-    const payload = Buffer.allocUnsafe(21);
-    payload.writeUInt8(network.pubKeyHash, 0);
-    o.hash.copy(payload, 1);
+    let payload;
+    if (network.pubKeyHash < 256) {
+      payload = Buffer.allocUnsafe(21);
+      payload.writeUInt8(network.pubKeyHash, 0);
+      o.hash.copy(payload, 1);
+    } else {
+      payload = Buffer.allocUnsafe(22);
+      payload.writeUInt16BE(network.pubKeyHash, 0);
+      o.hash.copy(payload, 2);
+    }
+    if (typeof a.bs58EncodeFunc !== 'undefined') {
+      return a.bs58EncodeFunc(payload);
+    }
     return bs58check.encode(payload);
   });
   lazy.prop(o, 'hash', () => {
@@ -80,8 +99,9 @@ function p2pkh(a, opts) {
   if (opts.validate) {
     let hash = Buffer.from([]);
     if (a.address) {
-      if (_address().version !== network.pubKeyHash)
+      if (_address().version !== network.pubKeyHash) {
         throw new TypeError('Invalid version or Network mismatch');
+      }
       if (_address().hash.length !== 20) throw new TypeError('Invalid address');
       hash = _address().hash;
     }

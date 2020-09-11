@@ -42,6 +42,7 @@ const DEFAULT_OPTS: PsbtOpts = {
    * It is only here as a last ditch effort to prevent sending a 500 BTC fee etc.
    */
   maximumFeeRate: 5000, // satoshi per byte
+  forkCoin: 'none', // use btg or bch to sign with forkID
 };
 
 /**
@@ -77,6 +78,22 @@ const DEFAULT_OPTS: PsbtOpts = {
  *   Transaction object. Such as fee rate not being larger than maximumFeeRate etc.
  */
 export class Psbt {
+  static readonly BCH_SIGHASH_ALL =
+    Transaction.SIGHASH_ALL | Transaction.SIGHASH_BITCOINCASHBIP143;
+  static readonly BTG_SIGHASH_ALL =
+    Transaction.SIGHASH_ALL |
+    Transaction.SIGHASH_BITCOINCASHBIP143 |
+    (Transaction.FORKID_BTG << 8);
+
+  static readonly DEFAULT_SIGHASHES = [
+    // BTC SIGHASH_ALL
+    Transaction.SIGHASH_ALL,
+    // BCH SIGHASH_ALL
+    Psbt.BCH_SIGHASH_ALL,
+    // BTG SIGHASH_ALL
+    Psbt.BTG_SIGHASH_ALL,
+  ];
+
   static fromBase64(data: string, opts: PsbtOptsOptional = {}): Psbt {
     const buffer = Buffer.from(data, 'base64');
     return this.fromBuffer(buffer, opts);
@@ -375,6 +392,7 @@ export class Psbt {
               inputIndex,
               Object.assign({}, input, { sighashType: sig.hashType }),
               this.__CACHE,
+              this.opts.forkCoin,
             )
           : { hash: hashCache!, script: scriptCache! };
       sighashCache = sig.hashType;
@@ -389,7 +407,7 @@ export class Psbt {
 
   signAllInputsHD(
     hdKeyPair: HDSigner,
-    sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    sighashTypes: number[] = Psbt.DEFAULT_SIGHASHES,
   ): this {
     if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
       throw new Error('Need HDSigner to sign input');
@@ -412,7 +430,7 @@ export class Psbt {
 
   signAllInputsHDAsync(
     hdKeyPair: HDSigner | HDSignerAsync,
-    sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    sighashTypes: number[] = Psbt.DEFAULT_SIGHASHES,
   ): Promise<void> {
     return new Promise(
       (resolve, reject): any => {
@@ -447,7 +465,7 @@ export class Psbt {
   signInputHD(
     inputIndex: number,
     hdKeyPair: HDSigner,
-    sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    sighashTypes: number[] = Psbt.DEFAULT_SIGHASHES,
   ): this {
     if (!hdKeyPair || !hdKeyPair.publicKey || !hdKeyPair.fingerprint) {
       throw new Error('Need HDSigner to sign input');
@@ -464,7 +482,7 @@ export class Psbt {
   signInputHDAsync(
     inputIndex: number,
     hdKeyPair: HDSigner | HDSignerAsync,
-    sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    sighashTypes: number[] = Psbt.DEFAULT_SIGHASHES,
   ): Promise<void> {
     return new Promise(
       (resolve, reject): any => {
@@ -490,7 +508,7 @@ export class Psbt {
 
   signAllInputs(
     keyPair: Signer,
-    sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    sighashTypes: number[] = Psbt.DEFAULT_SIGHASHES,
   ): this {
     if (!keyPair || !keyPair.publicKey)
       throw new Error('Need Signer to sign input');
@@ -515,7 +533,7 @@ export class Psbt {
 
   signAllInputsAsync(
     keyPair: Signer | SignerAsync,
-    sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    sighashTypes: number[] = Psbt.DEFAULT_SIGHASHES,
   ): Promise<void> {
     return new Promise(
       (resolve, reject): any => {
@@ -552,7 +570,8 @@ export class Psbt {
   signInput(
     inputIndex: number,
     keyPair: Signer,
-    sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    sighashTypes: number[] = Psbt.DEFAULT_SIGHASHES,
+    hashFunction?: (Hash: Buffer) => Buffer,
   ): this {
     if (!keyPair || !keyPair.publicKey)
       throw new Error('Need Signer to sign input');
@@ -562,12 +581,17 @@ export class Psbt {
       keyPair.publicKey,
       this.__CACHE,
       sighashTypes,
+      this.opts.forkCoin,
+      hashFunction,
     );
 
     const partialSig = [
       {
         pubkey: keyPair.publicKey,
-        signature: bscript.signature.encode(keyPair.sign(hash), sighashType),
+        signature: bscript.signature.encode(
+          keyPair.sign(hash),
+          sighashType & 0xff,
+        ),
       },
     ];
 
@@ -578,7 +602,7 @@ export class Psbt {
   signInputAsync(
     inputIndex: number,
     keyPair: Signer | SignerAsync,
-    sighashTypes: number[] = [Transaction.SIGHASH_ALL],
+    sighashTypes: number[] = Psbt.DEFAULT_SIGHASHES,
   ): Promise<void> {
     return Promise.resolve().then(() => {
       if (!keyPair || !keyPair.publicKey)
@@ -589,13 +613,14 @@ export class Psbt {
         keyPair.publicKey,
         this.__CACHE,
         sighashTypes,
+        this.opts.forkCoin,
       );
 
       return Promise.resolve(keyPair.sign(hash)).then(signature => {
         const partialSig = [
           {
             pubkey: keyPair.publicKey,
-            signature: bscript.signature.encode(signature, sighashType),
+            signature: bscript.signature.encode(signature, sighashType & 0xff),
           },
         ];
 
@@ -669,14 +694,18 @@ interface PsbtCache {
   __EXTRACTED_TX?: Transaction;
 }
 
+type ForkCoin = 'btg' | 'bch' | 'none';
+
 interface PsbtOptsOptional {
   network?: Network;
   maximumFeeRate?: number;
+  forkCoin?: ForkCoin;
 }
 
 interface PsbtOpts {
   network: Network;
   maximumFeeRate: number;
+  forkCoin: ForkCoin;
 }
 
 interface PsbtInputExtended extends PsbtInput, TransactionInput {}
@@ -802,6 +831,7 @@ function canFinalize(
     case 'pubkey':
     case 'pubkeyhash':
     case 'witnesspubkeyhash':
+    case 'nonstandard':
       return hasSigs(1, input.partialSig);
     case 'multisig':
       const p2ms = payments.p2ms({ output: script });
@@ -919,7 +949,7 @@ function checkPartialSigSighashes(input: PsbtInput): void {
   const { partialSig, sighashType } = input;
   partialSig.forEach(pSig => {
     const { hashType } = bscript.signature.decode(pSig.signature);
-    if (sighashType !== hashType) {
+    if ((sighashType & 0xff) !== hashType) {
       throw new Error('Signature sighash does not match input sighash type');
     }
   });
@@ -1098,7 +1128,7 @@ function prepareFinalScripts(
     }
   } else {
     if (p2sh) {
-      finalScriptSig = p2sh.input;
+      finalScriptSig = getPayment(script, scriptType, partialSig).input;
     } else {
       finalScriptSig = payment.input;
     }
@@ -1115,6 +1145,8 @@ function getHashAndSighashType(
   pubkey: Buffer,
   cache: PsbtCache,
   sighashTypes: number[],
+  forkCoin: ForkCoin,
+  hashFunction?: (Hash: Buffer) => Buffer,
 ): {
   hash: Buffer;
   sighashType: number;
@@ -1124,7 +1156,9 @@ function getHashAndSighashType(
     inputIndex,
     input,
     cache,
+    forkCoin,
     sighashTypes,
+    hashFunction,
   );
   checkScriptForPubkey(pubkey, script, 'sign');
   return {
@@ -1133,18 +1167,31 @@ function getHashAndSighashType(
   };
 }
 
+function getDefaultSighash(forkCoin: ForkCoin): number {
+  switch (forkCoin) {
+    case 'bch':
+      return Psbt.BCH_SIGHASH_ALL;
+    case 'btg':
+      return Psbt.BTG_SIGHASH_ALL;
+    case 'none':
+      return Transaction.SIGHASH_ALL;
+  }
+}
+
 function getHashForSig(
   inputIndex: number,
   input: PsbtInput,
   cache: PsbtCache,
+  forkCoin: ForkCoin,
   sighashTypes?: number[],
+  hashFunction?: (Hash: Buffer) => Buffer,
 ): {
   script: Buffer;
   hash: Buffer;
   sighashType: number;
 } {
   const unsignedTx = cache.__TX;
-  const sighashType = input.sighashType || Transaction.SIGHASH_ALL;
+  const sighashType = input.sighashType || getDefaultSighash(forkCoin);
   if (sighashTypes && sighashTypes.indexOf(sighashType) < 0) {
     const str = sighashTypeToString(sighashType);
     throw new Error(
@@ -1155,6 +1202,9 @@ function getHashForSig(
   let hash: Buffer;
   let script: Buffer;
 
+  const isForkId = (sighashType & Transaction.SIGHASH_BITCOINCASHBIP143) > 0;
+  const isBTG = (sighashType & (Transaction.FORKID_BTG << 8)) > 0;
+
   if (input.nonWitnessUtxo) {
     const nonWitnessUtxoTx = nonWitnessUtxoTxFromCache(
       cache,
@@ -1163,7 +1213,7 @@ function getHashForSig(
     );
 
     const prevoutHash = unsignedTx.ins[inputIndex].hash;
-    const utxoHash = nonWitnessUtxoTx.getHash();
+    const utxoHash = nonWitnessUtxoTx.getHash(false, hashFunction);
 
     // If a non-witness UTXO is provided, its hash must match the hash specified in the prevout
     if (!prevoutHash.equals(utxoHash)) {
@@ -1187,24 +1237,68 @@ function getHashForSig(
       if (!input.witnessScript)
         throw new Error('Segwit input needs witnessScript if not P2WPKH');
       checkWitnessScript(inputIndex, script, input.witnessScript);
-      hash = unsignedTx.hashForWitnessV0(
-        inputIndex,
-        input.witnessScript,
-        prevout.value,
-        sighashType,
-      );
+      if (isForkId && isBTG) {
+        hash = unsignedTx.hashForGoldSignature(
+          inputIndex,
+          input.witnessScript,
+          prevout.value,
+          sighashType,
+          true,
+        );
+      } else {
+        hash = unsignedTx.hashForWitnessV0(
+          inputIndex,
+          input.witnessScript,
+          prevout.value,
+          sighashType,
+          hashFunction,
+        );
+      }
       script = input.witnessScript;
     } else if (isP2WPKH(script)) {
       // P2WPKH uses the P2PKH template for prevoutScript when signing
       const signingScript = payments.p2pkh({ hash: script.slice(2) }).output!;
-      hash = unsignedTx.hashForWitnessV0(
-        inputIndex,
-        signingScript,
-        prevout.value,
-        sighashType,
-      );
+      if (isForkId && isBTG) {
+        hash = unsignedTx.hashForGoldSignature(
+          inputIndex,
+          signingScript,
+          prevout.value,
+          sighashType,
+          true,
+        );
+      } else {
+        hash = unsignedTx.hashForWitnessV0(
+          inputIndex,
+          signingScript,
+          prevout.value,
+          sighashType,
+          hashFunction,
+        );
+      }
     } else {
-      hash = unsignedTx.hashForSignature(inputIndex, script, sighashType);
+      if (isForkId && isBTG) {
+        hash = unsignedTx.hashForGoldSignature(
+          inputIndex,
+          script,
+          prevout.value,
+          sighashType,
+          true,
+        );
+      } else if (isForkId) {
+        hash = unsignedTx.hashForCashSignature(
+          inputIndex,
+          script,
+          prevout.value,
+          sighashType,
+        );
+      } else {
+        hash = unsignedTx.hashForSignature(
+          inputIndex,
+          script,
+          sighashType,
+          hashFunction,
+        );
+      }
     }
   } else if (input.witnessUtxo) {
     let _script: Buffer; // so we don't shadow the `let script` above
@@ -1222,25 +1316,65 @@ function getHashForSig(
     if (isP2WPKH(_script)) {
       // P2WPKH uses the P2PKH template for prevoutScript when signing
       const signingScript = payments.p2pkh({ hash: _script.slice(2) }).output!;
-      hash = unsignedTx.hashForWitnessV0(
-        inputIndex,
-        signingScript,
-        input.witnessUtxo.value,
-        sighashType,
-      );
+      if (isForkId && isBTG) {
+        hash = unsignedTx.hashForGoldSignature(
+          inputIndex,
+          signingScript,
+          input.witnessUtxo.value,
+          sighashType,
+          true,
+        );
+      } else {
+        hash = unsignedTx.hashForWitnessV0(
+          inputIndex,
+          signingScript,
+          input.witnessUtxo.value,
+          sighashType,
+          hashFunction,
+        );
+      }
       script = _script;
     } else if (isP2WSHScript(_script)) {
       if (!input.witnessScript)
         throw new Error('Segwit input needs witnessScript if not P2WPKH');
       checkWitnessScript(inputIndex, _script, input.witnessScript);
-      hash = unsignedTx.hashForWitnessV0(
-        inputIndex,
-        input.witnessScript,
-        input.witnessUtxo.value,
-        sighashType,
-      );
+      if (isForkId && isBTG) {
+        hash = unsignedTx.hashForGoldSignature(
+          inputIndex,
+          input.witnessScript,
+          input.witnessUtxo.value,
+          sighashType,
+          true,
+        );
+      } else {
+        hash = unsignedTx.hashForWitnessV0(
+          inputIndex,
+          input.witnessScript,
+          input.witnessUtxo.value,
+          sighashType,
+          hashFunction,
+        );
+      }
       // want to make sure the script we return is the actual meaningful script
       script = input.witnessScript;
+    } else if (isForkId) {
+      script = _script;
+      if (isBTG) {
+        hash = unsignedTx.hashForGoldSignature(
+          inputIndex,
+          script,
+          input.witnessUtxo.value,
+          sighashType,
+          true,
+        );
+      } else {
+        hash = unsignedTx.hashForCashSignature(
+          inputIndex,
+          script,
+          input.witnessUtxo.value,
+          sighashType,
+        );
+      }
     } else {
       throw new Error(
         `Input #${inputIndex} has witnessUtxo but non-segwit script: ` +
@@ -1291,6 +1425,18 @@ function getPayment(
         signature: partialSig[0].signature,
       });
       break;
+    case 'nonstandard':
+      payment = payments.p2sh({
+        redeem: {
+          output: script,
+          input: bscript.compile([
+            partialSig[0].signature,
+            partialSig[0].pubkey,
+          ]),
+        },
+        pubkey: partialSig[0].pubkey,
+        signature: partialSig[0].signature,
+      });
   }
   return payment!;
 }
@@ -1436,6 +1582,13 @@ function sighashTypeToString(sighashType: number): string {
     sighashType & Transaction.SIGHASH_ANYONECANPAY
       ? 'SIGHASH_ANYONECANPAY | '
       : '';
+  if (sighashType & Transaction.SIGHASH_BITCOINCASHBIP143)
+    text += 'SIGHASH_BITCOINCASHBIP143 | ';
+  if (sighashType & (Transaction.FORKID_BTG << 8)) {
+    text += 'FORKID_BTG | ';
+  } else {
+    text += 'FORKID_BCH | ';
+  }
   const sigMod = sighashType & 0x1f;
   switch (sigMod) {
     case Transaction.SIGHASH_ALL:

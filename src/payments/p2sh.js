@@ -38,15 +38,29 @@ function p2sh(a, opts) {
     a,
   );
   let network = a.network;
-  if (!network) {
+  if (typeof network === 'undefined') {
     network = (a.redeem && a.redeem.network) || networks_1.bitcoin;
   }
   const o = { network };
   const _address = lazy.value(() => {
-    const payload = bs58check.decode(a.address);
-    const version = payload.readUInt8(0);
-    const hash = payload.slice(1);
-    return { version, hash };
+    let payload;
+    if (typeof a.bs58DecodeFunc !== 'undefined') {
+      payload = a.bs58DecodeFunc(a.address);
+    } else {
+      payload = bs58check.decode(a.address);
+    }
+    if (typeof network === 'undefined') {
+      throw new Error('network undefined');
+    }
+    if (network.scriptHash < 255) {
+      const version = payload.readUInt8(0);
+      const hash = payload.slice(1);
+      return { version, hash };
+    } else {
+      const version = payload.readUInt16BE(0);
+      const hash = payload.slice(2);
+      return { version, hash };
+    }
   });
   const _chunks = lazy.value(() => {
     return bscript.decompile(a.input);
@@ -63,9 +77,22 @@ function p2sh(a, opts) {
   // output dependents
   lazy.prop(o, 'address', () => {
     if (!o.hash) return;
-    const payload = Buffer.allocUnsafe(21);
-    payload.writeUInt8(o.network.scriptHash, 0);
-    o.hash.copy(payload, 1);
+    let payload;
+    if (typeof network === 'undefined') {
+      throw new Error('network undefined');
+    }
+    if (network.scriptHash < 256) {
+      payload = Buffer.allocUnsafe(21);
+      payload.writeUInt8(network.scriptHash, 0);
+      o.hash.copy(payload, 1);
+    } else {
+      payload = Buffer.allocUnsafe(22);
+      payload.writeUInt16BE(network.scriptHash, 0);
+      o.hash.copy(payload, 2);
+    }
+    if (typeof a.bs58EncodeFunc !== 'undefined') {
+      return a.bs58EncodeFunc(payload);
+    }
     return bs58check.encode(payload);
   });
   lazy.prop(o, 'hash', () => {

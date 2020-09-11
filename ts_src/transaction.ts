@@ -63,8 +63,11 @@ export class Transaction {
   static readonly SIGHASH_NONE = 0x02;
   static readonly SIGHASH_SINGLE = 0x03;
   static readonly SIGHASH_ANYONECANPAY = 0x80;
+  static readonly SIGHASH_BITCOINCASHBIP143 = 0x40;
   static readonly ADVANCED_TRANSACTION_MARKER = 0x00;
   static readonly ADVANCED_TRANSACTION_FLAG = 0x01;
+  static readonly FORKID_BTG = 0x4f; // 79
+  static readonly FORKID_BCH = 0x00;
 
   static fromBuffer(buffer: Buffer, _NO_STRICT?: boolean): Transaction {
     const bufferReader = new BufferReader(buffer);
@@ -264,6 +267,7 @@ export class Transaction {
     inIndex: number,
     prevOutScript: Buffer,
     hashType: number,
+    hashFunction?: (Hash: Buffer) => Buffer,
   ): Buffer {
     typeforce(
       types.tuple(types.UInt32, types.Buffer, /* types.UInt8 */ types.Number),
@@ -333,6 +337,9 @@ export class Transaction {
     buffer.writeInt32LE(hashType, buffer.length - 4);
     txTmp.__toBuffer(buffer, 0, false);
 
+    if (typeof hashFunction !== 'undefined') {
+      return hashFunction(buffer);
+    }
     return bcrypto.hash256(buffer);
   }
 
@@ -341,6 +348,7 @@ export class Transaction {
     prevOutScript: Buffer,
     value: number,
     hashType: number,
+    hashFunction?: (Hash: Buffer) => Buffer,
   ): Buffer {
     typeforce(
       types.tuple(types.UInt32, types.Buffer, types.Satoshi, types.UInt32),
@@ -364,6 +372,9 @@ export class Transaction {
       });
 
       hashPrevouts = bcrypto.hash256(tbuffer);
+      if (typeof hashFunction !== 'undefined') {
+        hashPrevouts = hashFunction(tbuffer);
+      }
     }
 
     if (
@@ -379,6 +390,9 @@ export class Transaction {
       });
 
       hashSequence = bcrypto.hash256(tbuffer);
+      if (typeof hashFunction !== 'undefined') {
+        hashSequence = hashFunction(tbuffer);
+      }
     }
 
     if (
@@ -398,6 +412,9 @@ export class Transaction {
       });
 
       hashOutputs = bcrypto.hash256(tbuffer);
+      if (typeof hashFunction !== 'undefined') {
+        hashOutputs = hashFunction(tbuffer);
+      }
     } else if (
       (hashType & 0x1f) === Transaction.SIGHASH_SINGLE &&
       inIndex < this.outs.length
@@ -410,6 +427,9 @@ export class Transaction {
       bufferWriter.writeVarSlice(output.script);
 
       hashOutputs = bcrypto.hash256(tbuffer);
+      if (typeof hashFunction !== 'undefined') {
+        hashOutputs = hashFunction(tbuffer);
+      }
     }
 
     tbuffer = Buffer.allocUnsafe(156 + varSliceSize(prevOutScript));
@@ -427,18 +447,115 @@ export class Transaction {
     bufferWriter.writeSlice(hashOutputs);
     bufferWriter.writeUInt32(this.locktime);
     bufferWriter.writeUInt32(hashType);
+    if (typeof hashFunction !== 'undefined') {
+      return hashFunction(tbuffer);
+    }
     return bcrypto.hash256(tbuffer);
   }
 
-  getHash(forWitness?: boolean): Buffer {
+  /**
+   * Hash transaction for signing a specific input for Bitcoin Cash.
+   */
+  hashForCashSignature(
+    inIndex: number,
+    prevOutScript: Buffer,
+    inAmount: number,
+    hashType: number,
+  ): Buffer {
+    typeforce(
+      types.tuple(
+        types.UInt32,
+        types.Buffer,
+        /* types.UInt8 */ types.Number,
+        types.maybe(types.UInt53),
+      ),
+      arguments,
+    );
+
+    // This function works the way it does because Bitcoin Cash
+    // uses BIP143 as their replay protection, AND their algo
+    // includes `forkId | hashType`, AND since their forkId=0,
+    // this is a NOP, and has no difference to segwit. To support
+    // other forks, another parameter is required, and a new parameter
+    // would be required in the hashForWitnessV0 function, or
+    // it could be broken into two..
+
+    // BIP143 sighash activated in BitcoinCash via 0x40 bit
+    if (hashType & Transaction.SIGHASH_BITCOINCASHBIP143) {
+      if (types.Null(inAmount)) {
+        throw new Error(
+          'Bitcoin Cash sighash requires value of input to be signed.',
+        );
+      }
+      return this.hashForWitnessV0(inIndex, prevOutScript, inAmount, hashType);
+    } else {
+      return this.hashForSignature(inIndex, prevOutScript, hashType);
+    }
+  }
+
+  /**
+   * Hash transaction for signing a specific input for Bitcoin Gold.
+   */
+  hashForGoldSignature(
+    inIndex: number,
+    prevOutScript: Buffer,
+    inAmount: number,
+    hashType: number,
+    sigVersion?: boolean,
+  ): Buffer {
+    typeforce(
+      types.tuple(
+        types.UInt32,
+        types.Buffer,
+        /* types.UInt8 */ types.Number,
+        types.maybe(types.UInt53),
+      ),
+      arguments,
+    );
+
+    // Bitcoin Gold also implements segregated witness
+    // therefore we can pull out the setting of nForkHashType
+    // and pass it into the functions.
+
+    let nForkHashType = hashType;
+    const fUseForkId = (hashType & Transaction.SIGHASH_BITCOINCASHBIP143) > 0;
+    if (fUseForkId) {
+      nForkHashType |= Transaction.FORKID_BTG << 8;
+    }
+
+    // BIP143 sighash activated in BitcoinCash via 0x40 bit
+    if (sigVersion || fUseForkId) {
+      if (types.Null(inAmount)) {
+        throw new Error(
+          'Bitcoin Cash sighash requires value of input to be signed.',
+        );
+      }
+      return this.hashForWitnessV0(
+        inIndex,
+        prevOutScript,
+        inAmount,
+        nForkHashType,
+      );
+    } else {
+      return this.hashForSignature(inIndex, prevOutScript, nForkHashType);
+    }
+  }
+
+  getHash(
+    forWitness?: boolean,
+    hashFunction?: (Hash: Buffer) => Buffer,
+  ): Buffer {
     // wtxid for coinbase is always 32 bytes of 0x00
     if (forWitness && this.isCoinbase()) return Buffer.alloc(32, 0);
+    if (typeof hashFunction !== 'undefined') {
+      return hashFunction(this.__toBuffer(undefined, undefined, forWitness));
+    }
     return bcrypto.hash256(this.__toBuffer(undefined, undefined, forWitness));
   }
 
-  getId(): string {
+  getId(hashFunction?: (Hash: Buffer) => Buffer): string {
     // transaction hash's are displayed in reverse order
-    return reverseBuffer(this.getHash(false)).toString('hex');
+    return reverseBuffer(this.getHash(false, hashFunction)).toString('hex');
   }
 
   toBuffer(buffer?: Buffer, initialOffset?: number): Buffer {

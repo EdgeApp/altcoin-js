@@ -21,7 +21,7 @@ function Signer(obj) {
   );
 }
 exports.Signer = Signer;
-const SATOSHI_MAX = 21 * 1e14;
+const SATOSHI_MAX = 105 * 1e14;
 function Satoshi(value) {
   return typeforce.UInt53(value) && value <= SATOSHI_MAX;
 }
@@ -35,9 +35,9 @@ exports.Network = typeforce.compile({
     public: typeforce.UInt32,
     private: typeforce.UInt32,
   },
-  pubKeyHash: typeforce.UInt8,
-  scriptHash: typeforce.UInt8,
-  wif: typeforce.UInt8,
+  pubKeyHash: typeforce.UInt16,
+  scriptHash: typeforce.UInt16,
+  wif: typeforce.UInt16,
 });
 exports.Buffer256bit = typeforce.BufferN(32);
 exports.Hash160bit = typeforce.BufferN(20);
@@ -52,6 +52,7 @@ exports.maybe = typeforce.maybe;
 exports.tuple = typeforce.tuple;
 exports.UInt8 = typeforce.UInt8;
 exports.UInt32 = typeforce.UInt32;
+exports.UInt53 = typeforce.UInt53;
 exports.Function = typeforce.Function;
 exports.BufferN = typeforce.BufferN;
 exports.Null = typeforce.Null;

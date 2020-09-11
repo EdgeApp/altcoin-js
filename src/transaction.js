@@ -201,7 +201,7 @@ class Transaction {
    * hashType, and then hashes the result.
    * This hash can then be used to sign the provided transaction input.
    */
-  hashForSignature(inIndex, prevOutScript, hashType) {
+  hashForSignature(inIndex, prevOutScript, hashType, hashFunction) {
     typeforce(
       types.tuple(types.UInt32, types.Buffer, /* types.UInt8 */ types.Number),
       arguments,
@@ -255,9 +255,12 @@ class Transaction {
     const buffer = Buffer.allocUnsafe(txTmp.byteLength(false) + 4);
     buffer.writeInt32LE(hashType, buffer.length - 4);
     txTmp.__toBuffer(buffer, 0, false);
+    if (typeof hashFunction !== 'undefined') {
+      return hashFunction(buffer);
+    }
     return bcrypto.hash256(buffer);
   }
-  hashForWitnessV0(inIndex, prevOutScript, value, hashType) {
+  hashForWitnessV0(inIndex, prevOutScript, value, hashType, hashFunction) {
     typeforce(
       types.tuple(types.UInt32, types.Buffer, types.Satoshi, types.UInt32),
       arguments,
@@ -275,6 +278,9 @@ class Transaction {
         bufferWriter.writeUInt32(txIn.index);
       });
       hashPrevouts = bcrypto.hash256(tbuffer);
+      if (typeof hashFunction !== 'undefined') {
+        hashPrevouts = hashFunction(tbuffer);
+      }
     }
     if (
       !(hashType & Transaction.SIGHASH_ANYONECANPAY) &&
@@ -287,6 +293,9 @@ class Transaction {
         bufferWriter.writeUInt32(txIn.sequence);
       });
       hashSequence = bcrypto.hash256(tbuffer);
+      if (typeof hashFunction !== 'undefined') {
+        hashSequence = hashFunction(tbuffer);
+      }
     }
     if (
       (hashType & 0x1f) !== Transaction.SIGHASH_SINGLE &&
@@ -302,6 +311,9 @@ class Transaction {
         bufferWriter.writeVarSlice(out.script);
       });
       hashOutputs = bcrypto.hash256(tbuffer);
+      if (typeof hashFunction !== 'undefined') {
+        hashOutputs = hashFunction(tbuffer);
+      }
     } else if (
       (hashType & 0x1f) === Transaction.SIGHASH_SINGLE &&
       inIndex < this.outs.length
@@ -312,6 +324,9 @@ class Transaction {
       bufferWriter.writeUInt64(output.value);
       bufferWriter.writeVarSlice(output.script);
       hashOutputs = bcrypto.hash256(tbuffer);
+      if (typeof hashFunction !== 'undefined') {
+        hashOutputs = hashFunction(tbuffer);
+      }
     }
     tbuffer = Buffer.allocUnsafe(156 + varSliceSize(prevOutScript));
     bufferWriter = new bufferutils_1.BufferWriter(tbuffer, 0);
@@ -327,16 +342,94 @@ class Transaction {
     bufferWriter.writeSlice(hashOutputs);
     bufferWriter.writeUInt32(this.locktime);
     bufferWriter.writeUInt32(hashType);
+    if (typeof hashFunction !== 'undefined') {
+      return hashFunction(tbuffer);
+    }
     return bcrypto.hash256(tbuffer);
   }
-  getHash(forWitness) {
+  /**
+   * Hash transaction for signing a specific input for Bitcoin Cash.
+   */
+  hashForCashSignature(inIndex, prevOutScript, inAmount, hashType) {
+    typeforce(
+      types.tuple(
+        types.UInt32,
+        types.Buffer,
+        /* types.UInt8 */ types.Number,
+        types.maybe(types.UInt53),
+      ),
+      arguments,
+    );
+    // This function works the way it does because Bitcoin Cash
+    // uses BIP143 as their replay protection, AND their algo
+    // includes `forkId | hashType`, AND since their forkId=0,
+    // this is a NOP, and has no difference to segwit. To support
+    // other forks, another parameter is required, and a new parameter
+    // would be required in the hashForWitnessV0 function, or
+    // it could be broken into two..
+    // BIP143 sighash activated in BitcoinCash via 0x40 bit
+    if (hashType & Transaction.SIGHASH_BITCOINCASHBIP143) {
+      if (types.Null(inAmount)) {
+        throw new Error(
+          'Bitcoin Cash sighash requires value of input to be signed.',
+        );
+      }
+      return this.hashForWitnessV0(inIndex, prevOutScript, inAmount, hashType);
+    } else {
+      return this.hashForSignature(inIndex, prevOutScript, hashType);
+    }
+  }
+  /**
+   * Hash transaction for signing a specific input for Bitcoin Gold.
+   */
+  hashForGoldSignature(inIndex, prevOutScript, inAmount, hashType, sigVersion) {
+    typeforce(
+      types.tuple(
+        types.UInt32,
+        types.Buffer,
+        /* types.UInt8 */ types.Number,
+        types.maybe(types.UInt53),
+      ),
+      arguments,
+    );
+    // Bitcoin Gold also implements segregated witness
+    // therefore we can pull out the setting of nForkHashType
+    // and pass it into the functions.
+    let nForkHashType = hashType;
+    const fUseForkId = (hashType & Transaction.SIGHASH_BITCOINCASHBIP143) > 0;
+    if (fUseForkId) {
+      nForkHashType |= Transaction.FORKID_BTG << 8;
+    }
+    // BIP143 sighash activated in BitcoinCash via 0x40 bit
+    if (sigVersion || fUseForkId) {
+      if (types.Null(inAmount)) {
+        throw new Error(
+          'Bitcoin Cash sighash requires value of input to be signed.',
+        );
+      }
+      return this.hashForWitnessV0(
+        inIndex,
+        prevOutScript,
+        inAmount,
+        nForkHashType,
+      );
+    } else {
+      return this.hashForSignature(inIndex, prevOutScript, nForkHashType);
+    }
+  }
+  getHash(forWitness, hashFunction) {
     // wtxid for coinbase is always 32 bytes of 0x00
     if (forWitness && this.isCoinbase()) return Buffer.alloc(32, 0);
+    if (typeof hashFunction !== 'undefined') {
+      return hashFunction(this.__toBuffer(undefined, undefined, forWitness));
+    }
     return bcrypto.hash256(this.__toBuffer(undefined, undefined, forWitness));
   }
-  getId() {
+  getId(hashFunction) {
     // transaction hash's are displayed in reverse order
-    return bufferutils_1.reverseBuffer(this.getHash(false)).toString('hex');
+    return bufferutils_1
+      .reverseBuffer(this.getHash(false, hashFunction))
+      .toString('hex');
   }
   toBuffer(buffer, initialOffset) {
     return this.__toBuffer(buffer, initialOffset, true);
@@ -397,6 +490,9 @@ Transaction.SIGHASH_ALL = 0x01;
 Transaction.SIGHASH_NONE = 0x02;
 Transaction.SIGHASH_SINGLE = 0x03;
 Transaction.SIGHASH_ANYONECANPAY = 0x80;
+Transaction.SIGHASH_BITCOINCASHBIP143 = 0x40;
 Transaction.ADVANCED_TRANSACTION_MARKER = 0x00;
 Transaction.ADVANCED_TRANSACTION_FLAG = 0x01;
+Transaction.FORKID_BTG = 0x4f; // 79
+Transaction.FORKID_BCH = 0x00;
 exports.Transaction = Transaction;

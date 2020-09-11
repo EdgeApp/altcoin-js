@@ -33,12 +33,12 @@ declare class ECPair implements ECPairInterface {
     constructor(__D?: Buffer | undefined, __Q?: Buffer | undefined, options?: ECPairOptions);
     readonly privateKey: Buffer | undefined;
     readonly publicKey: Buffer;
-    toWIF(): string;
+    toWIF(wifEncodeFunc?: (prefix: any, key: any, compressed: any) => string): string;
     sign(hash: Buffer, lowR?: boolean): Buffer;
     verify(hash: Buffer, signature: Buffer): boolean;
 }
 declare function fromPrivateKey(buffer: Buffer, options?: ECPairOptions): ECPair;
 declare function fromPublicKey(buffer: Buffer, options?: ECPairOptions): ECPair;
-declare function fromWIF(wifString: string, network?: Network | Network[]): ECPair;
+declare function fromWIF(wifString: string, network?: Network | Network[], bs58DecodeFunc?: (wif: string) => any): ECPair;
 declare function makeRandom(options?: ECPairOptions): ECPair;
 export { makeRandom, fromPrivateKey, fromPublicKey, fromWIF };

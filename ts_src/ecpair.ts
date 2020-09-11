@@ -5,6 +5,7 @@ const ecc = require('tiny-secp256k1');
 const randomBytes = require('randombytes');
 const typeforce = require('typeforce');
 const wif = require('wif');
+const bs58check = require('bs58check');
 
 const isOptions = typeforce.maybe(
   typeforce.compile({
@@ -71,8 +72,13 @@ class ECPair implements ECPairInterface {
     return this.__Q;
   }
 
-  toWIF(): string {
+  toWIF(
+    wifEncodeFunc?: (prefix: any, key: any, compressed: any) => string,
+  ): string {
     if (!this.__D) throw new Error('Missing private key');
+    if (typeof wifEncodeFunc !== 'undefined') {
+      return wifEncodeFunc(this.network.wif, this.__D, this.compressed);
+    }
     return wif.encode(this.network.wif, this.__D, this.compressed);
   }
 
@@ -116,9 +122,77 @@ function fromPublicKey(buffer: Buffer, options?: ECPairOptions): ECPair {
   return new ECPair(undefined, buffer, options);
 }
 
-function fromWIF(wifString: string, network?: Network | Network[]): ECPair {
-  const decoded = wif.decode(wifString);
-  const version = decoded.version;
+function wifDecode(
+  wifString: string,
+  version: number,
+  bs58DecodeFunc?: (wifString: string) => any,
+): any {
+  if (version < 256) {
+    let bsBuffer: any;
+    if (typeof bs58DecodeFunc !== 'undefined') {
+      bsBuffer = bs58DecodeFunc(wifString);
+    } else {
+      bsBuffer = bs58check.decode(wifString);
+    }
+    if (bsBuffer.length === 33) {
+      return {
+        version: bsBuffer[0],
+        privateKey: bsBuffer.slice(1, 33),
+        compressed: false,
+      };
+    }
+    // invalid length
+    if (bsBuffer.length !== 34) throw new Error('Invalid WIF length');
+    // invalid compression flag
+    if (bsBuffer[33] !== 0x01) throw new Error('Invalid compression flag');
+    return {
+      version: bsBuffer[0],
+      privateKey: bsBuffer.slice(1, 33),
+      compressed: true,
+    };
+  }
+
+  // long version bytes use blake hash for bs58 check encoding
+  let buffer: Buffer;
+  if (typeof bs58DecodeFunc !== 'undefined') {
+    buffer = bs58DecodeFunc(wifString);
+  } else {
+    buffer = bs58check.decode(wifString);
+  }
+  // extra case for two byte WIF versions
+  if (buffer.length === 34) {
+    return {
+      version: buffer.readUInt16LE(1),
+      privateKey: buffer.slice(2, 34),
+      compressed: false,
+    };
+  }
+  // invalid length
+  if (buffer.length !== 35) throw new Error('Invalid WIF length');
+  // invalid compression flag
+  if (buffer[34] !== 0x01) throw new Error('Invalid compression flag');
+  return {
+    version: buffer.readUInt16LE(1),
+    privateKey: buffer.slice(2, 34),
+    compressed: true,
+  };
+}
+
+function fromWIF(
+  wifString: string,
+  network?: Network | Network[],
+  bs58DecodeFunc?: (wif: string) => any,
+): ECPair {
+  let decoded: any;
+  let version: any;
+
+  if (!types.Array(network) && typeof network !== 'undefined') {
+    decoded = wifDecode(wifString, (network as Network).wif, bs58DecodeFunc);
+    version = decoded.version;
+  } else {
+    decoded = wif.decode(wifString);
+    version = decoded.version;
+  }
 
   // list of networks?
   if (types.Array(network)) {
