@@ -1,7 +1,7 @@
 {
-  "name": "bitcoinforksjs-lib",
+  "name": "altcoin-js",
   "version": "5.1.10",
-  "description": "Client-side Bitcoin JavaScript library",
+  "description": "Client-side Bitcoin + altcoin JavaScript library",
   "main": "./src/index.js",
   "types": "./types/index.d.ts",
   "engines": {
@@ -10,6 +10,7 @@
   "keywords": [
     "bitcoinjs",
     "bitcoin",
+    "altcoin",
     "browserify",
     "javascript",
     "bitcoinjs"
