@@ -133,13 +133,13 @@ export function fromOutputScript(output: Buffer, network?: Network): string {
   throw new Error(bscript.toASM(output) + ' has no matching Address');
 }
 
-export function toOutputScript(address: string, network?: Network): Buffer {
+export function toOutputScript(address: string, network?: Network, bs58DecodeFunc?: (address: string) => any): Buffer {
   network = network || networks.bitcoin;
 
   let decodeBase58: Base58CheckResult | undefined;
   let decodeBech32: Bech32Result | undefined;
   try {
-    decodeBase58 = fromBase58Check(address);
+    decodeBase58 = fromBase58Check(address, bs58DecodeFunc);
   } catch (e) {}
 
   if (decodeBase58) {
