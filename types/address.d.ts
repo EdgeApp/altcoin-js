@@ -13,4 +13,4 @@ export declare function fromBech32(address: string): Bech32Result;
 export declare function toBase58Check(hash: Buffer, version: number, bs58EncodeFunc?: (payload: Buffer) => string): string;
 export declare function toBech32(data: Buffer, version: number, prefix: string): string;
 export declare function fromOutputScript(output: Buffer, network?: Network): string;
-export declare function toOutputScript(address: string, network?: Network): Buffer;
+export declare function toOutputScript(address: string, network?: Network, bs58DecodeFunc?: (address: string) => any): Buffer;

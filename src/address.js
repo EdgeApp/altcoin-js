@@ -100,12 +100,12 @@ function fromOutputScript(output, network) {
   throw new Error(bscript.toASM(output) + ' has no matching Address');
 }
 exports.fromOutputScript = fromOutputScript;
-function toOutputScript(address, network) {
+function toOutputScript(address, network, bs58DecodeFunc) {
   network = network || networks.bitcoin;
   let decodeBase58;
   let decodeBech32;
   try {
-    decodeBase58 = fromBase58Check(address);
+    decodeBase58 = fromBase58Check(address, bs58DecodeFunc);
   } catch (e) {}
   if (decodeBase58) {
     if (decodeBase58.version === network.pubKeyHash)
