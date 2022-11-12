@@ -1431,7 +1431,6 @@ function getPayment(
           output: script,
           input: bscript.compile([
             partialSig[0].signature,
-            partialSig[0].pubkey,
           ]),
         },
         pubkey: partialSig[0].pubkey,
