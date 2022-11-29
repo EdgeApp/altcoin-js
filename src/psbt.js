@@ -1123,10 +1123,7 @@ function getPayment(script, scriptType, partialSig) {
       payment = payments.p2sh({
         redeem: {
           output: script,
-          input: bscript.compile([
-            partialSig[0].signature,
-            partialSig[0].pubkey,
-          ]),
+          input: bscript.compile([partialSig[0].signature]),
         },
         pubkey: partialSig[0].pubkey,
         signature: partialSig[0].signature,
