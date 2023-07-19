@@ -37,6 +37,9 @@ import { Transaction } from './transaction';
  */
 export declare class Psbt {
     readonly data: PsbtBase;
+    static readonly BCH_SIGHASH_ALL: number;
+    static readonly BTG_SIGHASH_ALL: number;
+    static readonly DEFAULT_SIGHASHES: number[];
     static fromBase64(data: string, opts?: PsbtOptsOptional): Psbt;
     static fromHex(data: string, opts?: PsbtOptsOptional): Psbt;
     static fromBuffer(buffer: Buffer, opts?: PsbtOptsOptional): Psbt;
@@ -71,7 +74,7 @@ export declare class Psbt {
     signInputHDAsync(inputIndex: number, hdKeyPair: HDSigner | HDSignerAsync, sighashTypes?: number[]): Promise<void>;
     signAllInputs(keyPair: Signer, sighashTypes?: number[]): this;
     signAllInputsAsync(keyPair: Signer | SignerAsync, sighashTypes?: number[]): Promise<void>;
-    signInput(inputIndex: number, keyPair: Signer, sighashTypes?: number[]): this;
+    signInput(inputIndex: number, keyPair: Signer, sighashTypes?: number[], hashFunction?: (Hash: Buffer) => Buffer): this;
     signInputAsync(inputIndex: number, keyPair: Signer | SignerAsync, sighashTypes?: number[]): Promise<void>;
     toBuffer(): Buffer;
     toHex(): string;

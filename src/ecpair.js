@@ -72,9 +72,9 @@ function fromPublicKey(buffer, options) {
   return new ECPair(undefined, buffer, options);
 }
 exports.fromPublicKey = fromPublicKey;
-function wifDecode(wifString, version) {
-  const buffer = bs58check.decode(wifString);
+function wifDecode(wifString, version, bs58DecodeFunc) {
   if (version < 256) {
+    const buffer = bs58check.decode(wifString);
     if (buffer.length === 33) {
       return {
         version: buffer[0],
@@ -92,10 +92,17 @@ function wifDecode(wifString, version) {
       compressed: true,
     };
   }
+  // long version bytes use blake hash for bs58 check encoding
+  let buffer;
+  if (typeof bs58DecodeFunc !== 'undefined') {
+    buffer = bs58DecodeFunc(wifString);
+  } else {
+    buffer = bs58check.decode(wifString);
+  }
   // extra case for two byte WIF versions
   if (buffer.length === 34) {
     return {
-      version: buffer.readUInt16LE(0, 2),
+      version: buffer.readUInt16LE(1),
       privateKey: buffer.slice(2, 34),
       compressed: false,
     };
@@ -105,7 +112,7 @@ function wifDecode(wifString, version) {
   // invalid compression flag
   if (buffer[34] !== 0x01) throw new Error('Invalid compression flag');
   return {
-    version: buffer.readUInt16LE(0, 2),
+    version: buffer.readUInt16LE(1),
     privateKey: buffer.slice(2, 34),
     compressed: true,
   };
