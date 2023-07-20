@@ -7,6 +7,11 @@
  * file LICENSE or http://www.opensource.org/licenses/mit-license.php.
  */
 Object.defineProperty(exports, '__esModule', { value: true });
+exports.VALID_PREFIXES =
+  exports.ValidationError =
+  exports.decode =
+  exports.encode =
+    void 0;
 const bigInt = require('big-integer');
 const base32 = require('./base32');
 const convertBits_1 = require('./convertBits');
@@ -258,7 +263,7 @@ function getHashSize(versionByte) {
  * @returns {Uint8Array}
  */
 function toUint5Array(data) {
-  return convertBits_1.convertBits(data, 8, 5);
+  return (0, convertBits_1.convertBits)(data, 8, 5);
 }
 /**
  * Converts an array of 5-bit integers back into an array of 8-bit integers,
@@ -271,7 +276,7 @@ function toUint5Array(data) {
  * @throws {ValidationError}
  */
 function fromUint5Array(data) {
-  return convertBits_1.convertBits(data, 5, 8, true);
+  return (0, convertBits_1.convertBits)(data, 5, 8, true);
 }
 /**
  * Returns the concatenation a and b.
@@ -298,26 +303,14 @@ function concat(a, b) {
  */
 function polymod(data) {
   const GENERATOR = [
-    0x98f2bc8e61,
-    0x79b76d99e2,
-    0xf33e5fb3c4,
-    0xae2eabe2a8,
-    0x1e4f43e470,
+    0x98f2bc8e61, 0x79b76d99e2, 0xf33e5fb3c4, 0xae2eabe2a8, 0x1e4f43e470,
   ];
   let checksum = bigInt(1);
   for (const value of data) {
     const topBits = checksum.shiftRight(35);
-    checksum = checksum
-      .and(0x07ffffffff)
-      .shiftLeft(5)
-      .xor(value);
+    checksum = checksum.and(0x07ffffffff).shiftLeft(5).xor(value);
     for (let j = 0; j < GENERATOR.length; ++j) {
-      if (
-        topBits
-          .shiftRight(j)
-          .and(1)
-          .equals(1)
-      ) {
+      if (topBits.shiftRight(j).and(1).equals(1)) {
         checksum = checksum.xor(GENERATOR[j]);
       }
     }

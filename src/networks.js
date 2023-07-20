@@ -1,5 +1,10 @@
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
+exports.testnet =
+  exports.regtest =
+  exports.bitcoin =
+  exports.bitcoingold =
+    void 0;
 exports.bitcoingold = {
   messagePrefix: '\x18Bitcoin Gold Signed Message:\n',
   bech32: 'btg',

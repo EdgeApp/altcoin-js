@@ -266,7 +266,7 @@ describe('Transaction', () => {
       tx.addOutput(randScript, 5000000000);
 
       const original = (tx as any).__toBuffer;
-      (tx as any).__toBuffer = function(
+      (tx as any).__toBuffer = function (
         this: Transaction,
         a: any,
         b: any,
@@ -325,6 +325,27 @@ describe('Transaction', () => {
           );
         },
       );
+    });
+  });
+
+  describe('taprootSigning', () => {
+    fixtures.taprootSigning.forEach(f => {
+      const tx = Transaction.fromHex(f.txHex);
+      const prevOutScripts = f.utxos.map(({ scriptHex }) =>
+        Buffer.from(scriptHex, 'hex'),
+      );
+      const values = f.utxos.map(({ value }) => value);
+
+      f.cases.forEach(c => {
+        let hash: Buffer;
+
+        it(`should hash to ${c.hash} for ${f.description}:${c.vin}`, () => {
+          const hashType = Buffer.from(c.typeHex, 'hex').readUInt8(0);
+
+          hash = tx.hashForWitnessV1(c.vin, prevOutScripts, values, hashType);
+          assert.strictEqual(hash.toString('hex'), c.hash);
+        });
+      });
     });
   });
 

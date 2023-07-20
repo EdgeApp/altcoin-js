@@ -1,6 +1,7 @@
 import * as bcrypto from '../crypto';
 import { bitcoin as BITCOIN_NETWORK } from '../networks';
 import * as bscript from '../script';
+import { typeforce as typef } from '../types';
 import {
   Payment,
   PaymentFunction,
@@ -9,10 +10,8 @@ import {
   StackFunction,
 } from './index';
 import * as lazy from './lazy';
-const typef = require('typeforce');
+import * as bs58check from 'bs58check';
 const OPS = bscript.OPS;
-
-const bs58check = require('bs58check');
 
 function stacksEqual(a: Buffer[], b: Buffer[]): boolean {
   if (a.length !== b.length) return false;
@@ -58,7 +57,7 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
   const o: Payment = { network };
 
   const _address = lazy.value(() => {
-    const payload = bs58check.decode(a.address);
+    const payload = Buffer.from(bs58check.decode(a.address!));
     const version = payload.readUInt8(0);
     const hash = payload.slice(1);
     return { version, hash };
@@ -66,17 +65,17 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
   const _chunks = lazy.value(() => {
     return bscript.decompile(a.input!);
   }) as StackFunction;
-  const _redeem = lazy.value(
-    (): Payment => {
-      const chunks = _chunks();
-      return {
-        network,
-        output: chunks[chunks.length - 1] as Buffer,
-        input: bscript.compile(chunks.slice(0, -1)),
-        witness: a.witness || [],
-      };
-    },
-  ) as PaymentFunction;
+  const _redeem = lazy.value((): Payment => {
+    const chunks = _chunks();
+    const lastChunk = chunks[chunks.length - 1];
+    return {
+      network,
+      output:
+        lastChunk === OPS.OP_FALSE ? Buffer.from([]) : (lastChunk as Buffer),
+      input: bscript.compile(chunks.slice(0, -1)),
+      witness: a.witness || [],
+    };
+  }) as PaymentFunction;
 
   // output dependents
   lazy.prop(o, 'address', () => {
@@ -118,7 +117,8 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
   });
   lazy.prop(o, 'name', () => {
     const nameParts = ['p2sh'];
-    if (o.redeem !== undefined) nameParts.push(o.redeem.name!);
+    if (o.redeem !== undefined && o.redeem.name !== undefined)
+      nameParts.push(o.redeem.name!);
     return nameParts.join('-');
   });
 
@@ -159,6 +159,14 @@ export function p2sh(a: Payment, opts?: PaymentOpts): Payment {
         const decompile = bscript.decompile(redeem.output);
         if (!decompile || decompile.length < 1)
           throw new TypeError('Redeem.output too short');
+        if (redeem.output.byteLength > 520)
+          throw new TypeError(
+            'Redeem.output unspendable if larger than 520 bytes',
+          );
+        if (bscript.countNonPushOnlyOPs(decompile) > 201)
+          throw new TypeError(
+            'Redeem.output unspendable with more than 201 non-push ops',
+          );
 
         // match hash against other sources
         const hash2 = bcrypto.hash160(redeem.output);

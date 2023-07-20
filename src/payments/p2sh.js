@@ -1,12 +1,13 @@
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
+exports.p2sh = void 0;
 const bcrypto = require('../crypto');
 const networks_1 = require('../networks');
 const bscript = require('../script');
+const types_1 = require('../types');
 const lazy = require('./lazy');
-const typef = require('typeforce');
-const OPS = bscript.OPS;
 const bs58check = require('bs58check');
+const OPS = bscript.OPS;
 function stacksEqual(a, b) {
   if (a.length !== b.length) return false;
   return a.every((x, i) => {
@@ -20,20 +21,24 @@ function p2sh(a, opts) {
   if (!a.address && !a.hash && !a.output && !a.redeem && !a.input)
     throw new TypeError('Not enough data');
   opts = Object.assign({ validate: true }, opts || {});
-  typef(
+  (0, types_1.typeforce)(
     {
-      network: typef.maybe(typef.Object),
-      address: typef.maybe(typef.String),
-      hash: typef.maybe(typef.BufferN(20)),
-      output: typef.maybe(typef.BufferN(23)),
-      redeem: typef.maybe({
-        network: typef.maybe(typef.Object),
-        output: typef.maybe(typef.Buffer),
-        input: typef.maybe(typef.Buffer),
-        witness: typef.maybe(typef.arrayOf(typef.Buffer)),
+      network: types_1.typeforce.maybe(types_1.typeforce.Object),
+      address: types_1.typeforce.maybe(types_1.typeforce.String),
+      hash: types_1.typeforce.maybe(types_1.typeforce.BufferN(20)),
+      output: types_1.typeforce.maybe(types_1.typeforce.BufferN(23)),
+      redeem: types_1.typeforce.maybe({
+        network: types_1.typeforce.maybe(types_1.typeforce.Object),
+        output: types_1.typeforce.maybe(types_1.typeforce.Buffer),
+        input: types_1.typeforce.maybe(types_1.typeforce.Buffer),
+        witness: types_1.typeforce.maybe(
+          types_1.typeforce.arrayOf(types_1.typeforce.Buffer),
+        ),
       }),
-      input: typef.maybe(typef.Buffer),
-      witness: typef.maybe(typef.arrayOf(typef.Buffer)),
+      input: types_1.typeforce.maybe(types_1.typeforce.Buffer),
+      witness: types_1.typeforce.maybe(
+        types_1.typeforce.arrayOf(types_1.typeforce.Buffer),
+      ),
     },
     a,
   );
@@ -43,7 +48,7 @@ function p2sh(a, opts) {
   }
   const o = { network };
   const _address = lazy.value(() => {
-    const payload = bs58check.decode(a.address);
+    const payload = Buffer.from(bs58check.decode(a.address));
     const version = payload.readUInt8(0);
     const hash = payload.slice(1);
     return { version, hash };
@@ -53,9 +58,10 @@ function p2sh(a, opts) {
   });
   const _redeem = lazy.value(() => {
     const chunks = _chunks();
+    const lastChunk = chunks[chunks.length - 1];
     return {
       network,
-      output: chunks[chunks.length - 1],
+      output: lastChunk === OPS.OP_FALSE ? Buffer.from([]) : lastChunk,
       input: bscript.compile(chunks.slice(0, -1)),
       witness: a.witness || [],
     };
@@ -95,7 +101,8 @@ function p2sh(a, opts) {
   });
   lazy.prop(o, 'name', () => {
     const nameParts = ['p2sh'];
-    if (o.redeem !== undefined) nameParts.push(o.redeem.name);
+    if (o.redeem !== undefined && o.redeem.name !== undefined)
+      nameParts.push(o.redeem.name);
     return nameParts.join('-');
   });
   if (opts.validate) {
@@ -131,6 +138,14 @@ function p2sh(a, opts) {
         const decompile = bscript.decompile(redeem.output);
         if (!decompile || decompile.length < 1)
           throw new TypeError('Redeem.output too short');
+        if (redeem.output.byteLength > 520)
+          throw new TypeError(
+            'Redeem.output unspendable if larger than 520 bytes',
+          );
+        if (bscript.countNonPushOnlyOPs(decompile) > 201)
+          throw new TypeError(
+            'Redeem.output unspendable with more than 201 non-push ops',
+          );
         // match hash against other sources
         const hash2 = bcrypto.hash160(redeem.output);
         if (hash.length > 0 && !hash.equals(hash2))

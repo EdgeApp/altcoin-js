@@ -1,5 +1,6 @@
 'use strict';
 Object.defineProperty(exports, '__esModule', { value: true });
+exports.decode = exports.encode = void 0;
 /**
  * @license
  * https://github.com/bitcoincashjs/cashaddr
@@ -65,13 +66,13 @@ const CHARSET_INVERSE_INDEX = {
  * @throws {ValidationError}
  */
 function encode(data) {
-  validation_1.validate(
+  (0, validation_1.validate)(
     data instanceof Uint8Array,
     'Invalid data: ' + data + '.',
   );
   let base32 = '';
   for (const value of data) {
-    validation_1.validate(
+    (0, validation_1.validate)(
       0 <= value && value < 32,
       'Invalid value: ' + value + '.',
     );
@@ -89,14 +90,14 @@ exports.encode = encode;
  * @throws {ValidationError}
  */
 function decode(strng) {
-  validation_1.validate(
+  (0, validation_1.validate)(
     typeof strng === 'string',
     'Invalid base32-encoded string: ' + strng + '.',
   );
   const data = new Uint8Array(strng.length);
   for (let i = 0; i < strng.length; ++i) {
     const value = strng[i];
-    validation_1.validate(
+    (0, validation_1.validate)(
       value in CHARSET_INVERSE_INDEX,
       'Invalid value: ' + value + '.',
     );

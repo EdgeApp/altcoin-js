@@ -20,6 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 Object.defineProperty(exports, '__esModule', { value: true });
+exports.convertBits = void 0;
 const validation_1 = require('./validation');
 /**
  * Converts an array of integers made up of 'from' bits into an
@@ -44,7 +45,7 @@ function convertBits(data, from, to, strictMode) {
   let accumulator = 0;
   let bits = 0;
   for (const value of data) {
-    validation_1.validate(
+    (0, validation_1.validate)(
       0 <= value && value >> from === 0,
       'Invalid value: ' + value + '.',
     );
@@ -62,7 +63,7 @@ function convertBits(data, from, to, strictMode) {
       ++index;
     }
   } else {
-    validation_1.validate(
+    (0, validation_1.validate)(
       bits < from && ((accumulator << (to - bits)) & mask) === 0,
       'Input cannot be converted to ' +
         to +

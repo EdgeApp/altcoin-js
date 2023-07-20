@@ -7,6 +7,7 @@
  * file LICENSE or http://www.opensource.org/licenses/mit-license.php.
  */
 Object.defineProperty(exports, '__esModule', { value: true });
+exports.validate = exports.ValidationError = void 0;
 /**
  * Validation utility.
  *

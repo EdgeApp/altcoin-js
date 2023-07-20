@@ -1,8 +1,5 @@
 # BitcoinJS (bitcoinjs-lib)
-[![Build Status](https://travis-ci.org/bitcoinjs/bitcoinjs-lib.png?branch=master)](https://travis-ci.org/bitcoinjs/bitcoinjs-lib)
-[![NPM](https://img.shields.io/npm/v/bitcoinjs-lib.svg)](https://www.npmjs.org/package/bitcoinjs-lib)
-
-[![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
+[![Github CI](https://github.com/bitcoinjs/bitcoinjs-lib/actions/workflows/main_ci.yml/badge.svg)](https://github.com/bitcoinjs/bitcoinjs-lib/actions/workflows/main_ci.yml) [![NPM](https://img.shields.io/npm/v/bitcoinjs-lib.svg)](https://www.npmjs.org/package/bitcoinjs-lib) [![code style: prettier](https://img.shields.io/badge/code_style-prettier-ff69b4.svg?style=flat-square)](https://github.com/prettier/prettier)
 
 A javascript Bitcoin library for node.js and browsers. Written in TypeScript, but committing the JS files to verify.
 
@@ -30,14 +27,23 @@ Mistakes and bugs happen, but with your help in resolving and reporting [issues]
 ## Documentation
 Presently,  we do not have any formal documentation other than our [examples](#examples), please [ask for help](https://github.com/bitcoinjs/bitcoinjs-lib/issues/new) if our examples aren't enough to guide you.
 
+You can find a [Web UI](https://bitcoincore.tech/apps/bitcoinjs-ui/index.html) that covers most of the `psbt.ts`, `transaction.ts` and `p2*.ts` APIs [here](https://bitcoincore.tech/apps/bitcoinjs-ui/index.html).
 
 ## Installation
 ``` bash
 npm install bitcoinjs-lib
+# optionally, install a key derivation library as well
+npm install ecpair bip32
+# ecpair is the ECPair class for single keys
+# bip32 is for generating HD keys
 ```
 
-Typically we support the [Node Maintenance LTS version](https://github.com/nodejs/Release).
-If in doubt, see the [.travis.yml](.travis.yml) for what versions are used by our continuous integration tests.
+Previous versions of the library included classes for key management (ECPair, HDNode(->"bip32")) but now these have been separated into different libraries. This lowers the bundle size significantly if you don't need to perform any crypto functions (converting private to public keys and deriving HD keys).
+
+Typically we support the [Node Maintenance LTS version](https://github.com/nodejs/Release). TypeScript target will be set
+to the ECMAScript version in which all features are fully supported by current Active Node LTS.
+However, depending on adoption among other environments (browsers etc.) we may keep the target back a year or two.
+If in doubt, see the [main_ci.yml](.github/workflows/main_ci.yml) for what versions are used by our continuous integration tests.
 
 **WARNING**: We presently don't provide any tooling to verify that the release on `npm` matches GitHub.  As such, you should verify anything downloaded by `npm` against your own verified copy.
 
@@ -59,9 +65,9 @@ It can do this through undermining your random number generation, accidentally p
 Running tests in your target environment is important and a recommended step to verify continuously.
 
 Finally, **adhere to best practice**.
-We are not an authorative source of best practice, but, at the very least:
+We are not an authoritative source of best practice, but, at the very least:
 
-* [Don't re-use addresses](https://en.bitcoin.it/wiki/Address_reuse).
+* [Don't reuse addresses](https://en.bitcoin.it/wiki/Address_reuse).
 * Don't share BIP32 extended public keys ('xpubs'). [They are a liability](https://bitcoin.stackexchange.com/questions/56916/derivation-of-parent-private-key-from-non-hardened-child), and it only takes 1 misplaced private key (or a buggy implementation!) and you are vulnerable to **catastrophic fund loss**.
 * [Don't use `Math.random`](https://security.stackexchange.com/questions/181580/why-is-math-random-not-designed-to-be-cryptographically-secure) - in any way - don't.
 * Enforce that users always verify (manually) a freshly-decoded human-readable version of their intended transaction before broadcast.
@@ -70,12 +76,24 @@ We are not an authorative source of best practice, but, at the very least:
 
 
 ### Browser
-The recommended method of using `bitcoinjs-lib` in your browser is through [Browserify](https://github.com/substack/node-browserify).
-If you're familiar with how to use browserify, ignore this and carry on, otherwise, it is recommended to read the tutorial at https://browserify.org/.
+The recommended method of using `bitcoinjs-lib` in your browser is through [browserify](http://browserify.org/).
+
+If you'd like to use a different (more modern) build tool than `browserify`, you can compile just this library and its dependencies into a single JavaScript file:
+
+```sh
+$ npm install bitcoinjs-lib browserify
+$ npx browserify --standalone bitcoin - -o bitcoinjs-lib.js <<<"module.exports = require('bitcoinjs-lib');"
+```
+
+Which you can then import as an ESM module:
+
+```javascript
+<script type="module">import "/scripts/bitcoinjs-lib.js"</script>
+````
 
 **NOTE**: We use Node Maintenance LTS features, if you need strict ES5, use [`--transform babelify`](https://github.com/babel/babelify) in conjunction with your `browserify` step (using an [`es2015`](https://babeljs.io/docs/plugins/preset-es2015/) preset).
 
-**WARNING**: iOS devices have [problems](https://github.com/feross/buffer/issues/136), use atleast [buffer@5.0.5](https://github.com/feross/buffer/pull/155) or greater,  and enforce the test suites (for `Buffer`, and any other dependency) pass before use.
+**WARNING**: iOS devices have [problems](https://github.com/feross/buffer/issues/136), use at least [buffer@5.0.5](https://github.com/feross/buffer/pull/155) or greater,  and enforce the test suites (for `Buffer`, and any other dependency) pass before use.
 
 ### Typescript or VSCode users
 Type declarations for Typescript are included in this library. Normal installation should include all the needed type information.
@@ -85,6 +103,8 @@ The below examples are implemented as integration tests, they should be very eas
 Otherwise, pull requests are appreciated.
 Some examples interact (via HTTPS) with a 3rd Party Blockchain Provider (3PBP).
 
+
+- [Taproot Key Spend](https://github.com/bitcoinjs/bitcoinjs-lib/blob/master/test/integration/taproot.spec.ts)
 - [Generate a random address](https://github.com/bitcoinjs/bitcoinjs-lib/blob/master/test/integration/addresses.spec.ts)
 - [Import an address via WIF](https://github.com/bitcoinjs/bitcoinjs-lib/blob/master/test/integration/addresses.spec.ts)
 - [Generate a 2-of-3 P2SH multisig address](https://github.com/bitcoinjs/bitcoinjs-lib/blob/master/test/integration/addresses.spec.ts)
@@ -145,7 +165,7 @@ npm run-script coverage
 - [BIP69](https://github.com/bitcoinjs/bip69) - Lexicographical Indexing of Transaction Inputs and Outputs
 - [Base58](https://github.com/cryptocoinjs/bs58) - Base58 encoding/decoding
 - [Base58 Check](https://github.com/bitcoinjs/bs58check) - Base58 check encoding/decoding
-- [Bech32](https://github.com/bitcoinjs/bech32) - A BIP173 compliant Bech32 encoding library
+- [Bech32](https://github.com/bitcoinjs/bech32) - A BIP173/BIP350 compliant Bech32/Bech32m encoding library
 - [coinselect](https://github.com/bitcoinjs/coinselect) - A fee-optimizing, transaction input selection module for bitcoinjs-lib.
 - [merkle-lib](https://github.com/bitcoinjs/merkle-lib) - A performance conscious library for merkle root and tree calculations.
 - [minimaldata](https://github.com/bitcoinjs/minimaldata) - A module to check bitcoin policy: SCRIPT_VERIFY_MINIMALDATA

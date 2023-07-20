@@ -1,10 +1,14 @@
+import ECPairFactory from 'ecpair';
+import * as ecc from 'tiny-secp256k1';
 import { describe, it } from 'mocha';
 import * as bitcoin from '../..';
 import { regtestUtils } from './_regtest';
+
+const ECPair = ECPairFactory(ecc);
 const NETWORK = regtestUtils.network;
 const keyPairs = [
-  bitcoin.ECPair.makeRandom({ network: NETWORK }),
-  bitcoin.ECPair.makeRandom({ network: NETWORK }),
+  ECPair.makeRandom({ network: NETWORK }),
+  ECPair.makeRandom({ network: NETWORK }),
 ];
 
 async function buildAndSign(
@@ -38,10 +42,7 @@ async function buildAndSign(
   }
 
   return regtestUtils.broadcast(
-    psbt
-      .finalizeAllInputs()
-      .extractTransaction()
-      .toHex(),
+    psbt.finalizeAllInputs().extractTransaction().toHex(),
   );
 }
 

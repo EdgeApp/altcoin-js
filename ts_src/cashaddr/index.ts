@@ -315,26 +315,14 @@ function concat(a: Uint8Array, b: Uint8Array): Uint8Array {
  */
 function polymod(data: Uint8Array): BigInteger {
   const GENERATOR = [
-    0x98f2bc8e61,
-    0x79b76d99e2,
-    0xf33e5fb3c4,
-    0xae2eabe2a8,
-    0x1e4f43e470,
+    0x98f2bc8e61, 0x79b76d99e2, 0xf33e5fb3c4, 0xae2eabe2a8, 0x1e4f43e470,
   ];
   let checksum = bigInt(1);
   for (const value of data) {
     const topBits = checksum.shiftRight(35);
-    checksum = checksum
-      .and(0x07ffffffff)
-      .shiftLeft(5)
-      .xor(value);
+    checksum = checksum.and(0x07ffffffff).shiftLeft(5).xor(value);
     for (let j = 0; j < GENERATOR.length; ++j) {
-      if (
-        topBits
-          .shiftRight(j)
-          .and(1)
-          .equals(1)
-      ) {
+      if (topBits.shiftRight(j).and(1).equals(1)) {
         checksum = checksum.xor(GENERATOR[j]);
       }
     }

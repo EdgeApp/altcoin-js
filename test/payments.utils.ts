@@ -52,6 +52,12 @@ function equateBase(a: any, b: any, context: string): void {
       tryHex(b.witness),
       `Inequal ${context}witness`,
     );
+  if ('redeemVersion' in b)
+    t.strictEqual(
+      a.redeemVersion,
+      b.redeemVersion,
+      `Inequal ${context}redeemVersion`,
+    );
 }
 
 export function equate(a: any, b: any, args?: any): void {
@@ -62,10 +68,12 @@ export function equate(a: any, b: any, args?: any): void {
   if (b.input === null) b.input = undefined;
   if (b.output === null) b.output = undefined;
   if (b.witness === null) b.witness = undefined;
+  if (b.redeemVersion === null) b.redeemVersion = undefined;
   if (b.redeem) {
     if (b.redeem.input === null) b.redeem.input = undefined;
     if (b.redeem.output === null) b.redeem.output = undefined;
     if (b.redeem.witness === null) b.redeem.witness = undefined;
+    if (b.redeem.redeemVersion === null) b.redeem.redeemVersion = undefined;
   }
 
   equateBase(a, b, '');
@@ -81,10 +89,17 @@ export function equate(a: any, b: any, args?: any): void {
   if (b.signature === null) b.signature = undefined;
   if (b.signatures === null) b.signatures = undefined;
   if ('address' in b) t.strictEqual(a.address, b.address, 'Inequal *.address');
+  if ('name' in b) t.strictEqual(a.name, b.name, 'Inequal *.name');
   if ('hash' in b)
     t.strictEqual(tryHex(a.hash), tryHex(b.hash), 'Inequal *.hash');
   if ('pubkey' in b)
     t.strictEqual(tryHex(a.pubkey), tryHex(b.pubkey), 'Inequal *.pubkey');
+  if ('internalPubkey' in b)
+    t.strictEqual(
+      tryHex(a.internalPubkey),
+      tryHex(b.internalPubkey),
+      'Inequal *.internalPubkey',
+    );
   if ('signature' in b)
     t.strictEqual(
       tryHex(a.signature),
@@ -128,6 +143,7 @@ export function preform(x: any): any {
   if (x.data) x.data = x.data.map(fromHex);
   if (x.hash) x.hash = Buffer.from(x.hash, 'hex');
   if (x.pubkey) x.pubkey = Buffer.from(x.pubkey, 'hex');
+  if (x.internalPubkey) x.internalPubkey = Buffer.from(x.internalPubkey, 'hex');
   if (x.signature) x.signature = Buffer.from(x.signature, 'hex');
   if (x.pubkeys) x.pubkeys = x.pubkeys.map(fromHex);
   if (x.signatures)
@@ -146,6 +162,7 @@ export function preform(x: any): any {
       x.redeem.network = (BNETWORKS as any)[x.redeem.network];
   }
 
+  if (x.scriptTree) x.scriptTree = convertScriptTree(x.scriptTree);
   return x;
 }
 
@@ -167,4 +184,16 @@ export function from(path: string, object: any, result?: any): any {
   });
 
   return result;
+}
+
+export function convertScriptTree(scriptTree: any, leafVersion?: number): any {
+  if (Array.isArray(scriptTree))
+    return scriptTree.map(tr => convertScriptTree(tr, leafVersion));
+
+  const script = Object.assign({}, scriptTree);
+  if (typeof script.output === 'string') {
+    script.output = asmToBuffer(scriptTree.output);
+    script.version = script.version || leafVersion;
+  }
+  return script;
 }

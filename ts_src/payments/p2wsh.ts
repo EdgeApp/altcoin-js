@@ -1,13 +1,11 @@
 import * as bcrypto from '../crypto';
 import { bitcoin as BITCOIN_NETWORK } from '../networks';
 import * as bscript from '../script';
+import { isPoint, typeforce as typef } from '../types';
 import { Payment, PaymentOpts, StackElement, StackFunction } from './index';
 import * as lazy from './lazy';
-const typef = require('typeforce');
+import { bech32 } from 'bech32';
 const OPS = bscript.OPS;
-const ecc = require('tiny-secp256k1');
-
-const bech32 = require('bech32');
 
 const EMPTY_BUFFER = Buffer.alloc(0);
 
@@ -24,7 +22,7 @@ function chunkHasUncompressedPubkey(chunk: StackElement): boolean {
     Buffer.isBuffer(chunk) &&
     chunk.length === 65 &&
     chunk[0] === 0x04 &&
-    ecc.isPoint(chunk)
+    isPoint(chunk)
   ) {
     return true;
   } else {
@@ -61,7 +59,7 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
   );
 
   const _address = lazy.value(() => {
-    const result = bech32.decode(a.address);
+    const result = bech32.decode(a.address!);
     const version = result.words.shift();
     const data = bech32.fromWords(result.words);
     return {
@@ -132,7 +130,8 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
   });
   lazy.prop(o, 'name', () => {
     const nameParts = ['p2wsh'];
-    if (o.redeem !== undefined) nameParts.push(o.redeem.name!);
+    if (o.redeem !== undefined && o.redeem.name !== undefined)
+      nameParts.push(o.redeem.name!);
     return nameParts.join('-');
   });
 
@@ -181,10 +180,19 @@ export function p2wsh(a: Payment, opts?: PaymentOpts): Payment {
       )
         throw new TypeError('Ambiguous witness source');
 
-      // is the redeem output non-empty?
+      // is the redeem output non-empty/valid?
       if (a.redeem.output) {
-        if (bscript.decompile(a.redeem.output)!.length === 0)
+        const decompile = bscript.decompile(a.redeem.output);
+        if (!decompile || decompile.length < 1)
           throw new TypeError('Redeem.output is invalid');
+        if (a.redeem.output.byteLength > 3600)
+          throw new TypeError(
+            'Redeem.output unspendable if larger than 3600 bytes',
+          );
+        if (bscript.countNonPushOnlyOPs(decompile) > 201)
+          throw new TypeError(
+            'Redeem.output unspendable with more than 201 non-push ops',
+          );
 
         // match hash against other sources
         const hash2 = bcrypto.sha256(a.redeem.output);

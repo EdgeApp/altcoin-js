@@ -1,8 +1,12 @@
 import * as assert from 'assert';
 import { PsbtInput } from 'bip174/src/lib/interfaces';
+import ECPairFactory from 'ecpair';
+import * as ecc from 'tiny-secp256k1';
 import { before, describe, it } from 'mocha';
 import * as bitcoin from '../..';
 import { regtestUtils } from './_regtest';
+
+const ECPair = ECPairFactory(ecc);
 const regtest = regtestUtils.network;
 const bip68 = require('bip68');
 const varuint = require('varuint-bitcoin');
@@ -15,19 +19,19 @@ function idToHash(txid: string): Buffer {
   return Buffer.from(txid, 'hex').reverse();
 }
 
-const alice = bitcoin.ECPair.fromWIF(
+const alice = ECPair.fromWIF(
   'cScfkGjbzzoeewVWmU2hYPUHeVGJRDdFt7WhmrVVGkxpmPP8BHWe',
   regtest,
 );
-const bob = bitcoin.ECPair.fromWIF(
+const bob = ECPair.fromWIF(
   'cMkopUXKWsEzAjfa1zApksGRwjVpJRB3831qM9W4gKZsLwjHXA9x',
   regtest,
 );
-const charles = bitcoin.ECPair.fromWIF(
+const charles = ECPair.fromWIF(
   'cMkopUXKWsEzAjfa1zApksGRwjVpJRB3831qM9W4gKZsMSb4Ubnf',
   regtest,
 );
-const dave = bitcoin.ECPair.fromWIF(
+const dave = ECPair.fromWIF(
   'cMkopUXKWsEzAjfa1zApksGRwjVpJRB3831qM9W4gKZsMwS4pqnx',
   regtest,
 );
@@ -71,7 +75,6 @@ describe('bitcoinjs-lib (transactions w/ CSV)', () => {
   // but after sequence1 time, _alice can allow the multisig to become 1 of 3.
   // but after sequence2 time, _alice can sign for the output all by themself.
 
-  /* tslint:disable-next-line */
   // Ref: https://github.com/bitcoinbook/bitcoinbook/blob/f8b883dcd4e3d1b9adf40fed59b7e898fbd9241f/ch07.asciidoc#complex-script-example
 
   // Note: bitcoinjs-lib will not offer specific support for problems with
@@ -218,7 +221,7 @@ describe('bitcoinjs-lib (transactions w/ CSV)', () => {
       await regtestUtils.broadcast(tx.toHex()).catch(err => {
         assert.throws(() => {
           if (err) throw err;
-        }, /Error: non-BIP68-final \(code 64\)/);
+        }, /Error: non-BIP68-final/);
       });
     },
   );
