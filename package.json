@@ -1,5 +1,5 @@
 {
-  "name": "bitcoinforksjs-lib",
+  "name": "altcoin-js",
   "version": "6.1.3",
   "description": "Client-side Bitcoin JavaScript library",
   "main": "./src/index.js",
