@@ -93,9 +93,9 @@ exports.Network = exports.typeforce.compile({
     public: exports.typeforce.UInt32,
     private: exports.typeforce.UInt32,
   },
-  pubKeyHash: exports.typeforce.UInt8,
-  scriptHash: exports.typeforce.UInt8,
-  wif: exports.typeforce.UInt8,
+  pubKeyHash: exports.typeforce.UInt16,
+  scriptHash: exports.typeforce.UInt16,
+  wif: exports.typeforce.UInt16,
 });
 exports.TAPLEAF_VERSION_MASK = 0xfe;
 function isTapleaf(o) {
