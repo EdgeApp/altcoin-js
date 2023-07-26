@@ -137,6 +137,10 @@ const DEFAULT_OPTS: PsbtOpts = {
  *   Transaction object. Such as fee rate not being larger than maximumFeeRate etc.
  */
 export class Psbt {
+  static BCH_SIGHASH_ALL: number = BCH_SIGHASH_ALL;
+  static BTG_SIGHASH_ALL: number = BTG_SIGHASH_ALL;
+  static DEFAULT_SIGHASHES: number[] = DEFAULT_SIGHASHES;
+
   static fromBase64(data: string, opts: PsbtOptsOptional = {}): Psbt {
     const buffer = Buffer.from(data, 'base64');
     return this.fromBuffer(buffer, opts);

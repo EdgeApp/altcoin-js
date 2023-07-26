@@ -914,6 +914,9 @@ class Psbt {
   }
 }
 exports.Psbt = Psbt;
+Psbt.BCH_SIGHASH_ALL = BCH_SIGHASH_ALL;
+Psbt.BTG_SIGHASH_ALL = BTG_SIGHASH_ALL;
+Psbt.DEFAULT_SIGHASHES = DEFAULT_SIGHASHES;
 /**
  * This function is needed to pass to the bip174 base class's fromBuffer.
  * It takes the "transaction buffer" portion of the psbt buffer and returns a

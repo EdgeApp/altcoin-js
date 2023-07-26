@@ -53,6 +53,9 @@ export type ValidateSigFunction = (pubkey: Buffer, msghash: Buffer, signature: B
  */
 export declare class Psbt {
     readonly data: PsbtBase;
+    static BCH_SIGHASH_ALL: number;
+    static BTG_SIGHASH_ALL: number;
+    static DEFAULT_SIGHASHES: number[];
     static fromBase64(data: string, opts?: PsbtOptsOptional): Psbt;
     static fromHex(data: string, opts?: PsbtOptsOptional): Psbt;
     static fromBuffer(buffer: Buffer, opts?: PsbtOptsOptional): Psbt;
