@@ -630,7 +630,7 @@ class Psbt {
       });
     });
   }
-  signInput(inputIndex, keyPair, sighashTypes) {
+  signInput(inputIndex, keyPair, sighashTypes, hashFunction) {
     if (!keyPair || !keyPair.publicKey)
       throw new Error('Need Signer to sign input');
     const input = (0, utils_1.checkForInput)(this.data.inputs, inputIndex);
@@ -643,7 +643,7 @@ class Psbt {
         sighashTypes,
       );
     }
-    return this._signInput(inputIndex, keyPair, sighashTypes);
+    return this._signInput(inputIndex, keyPair, sighashTypes, hashFunction);
   }
   signTaprootInput(inputIndex, keyPair, tapLeafHashToSign, sighashTypes) {
     if (!keyPair || !keyPair.publicKey)
@@ -659,7 +659,12 @@ class Psbt {
       );
     throw new Error(`Input #${inputIndex} is not of type Taproot.`);
   }
-  _signInput(inputIndex, keyPair, sighashTypes = DEFAULT_SIGHASHES) {
+  _signInput(
+    inputIndex,
+    keyPair,
+    sighashTypes = Psbt.DEFAULT_SIGHASHES,
+    hashFunction,
+  ) {
     const { hash, sighashType } = getHashAndSighashType(
       this.data.inputs,
       inputIndex,
@@ -667,6 +672,7 @@ class Psbt {
       this.__CACHE,
       sighashTypes,
       this.opts.forkCoin,
+      hashFunction,
     );
     const partialSig = [
       {
@@ -977,6 +983,7 @@ function canFinalize(input, script, scriptType) {
     case 'pubkey':
     case 'pubkeyhash':
     case 'witnesspubkeyhash':
+    case 'nonstandard':
       return hasSigs(1, input.partialSig);
     case 'multisig':
       const p2ms = payments.p2ms({ output: script });
@@ -1184,6 +1191,7 @@ function getHashAndSighashType(
   cache,
   sighashTypes,
   forkCoin,
+  hashFunction,
 ) {
   const input = (0, utils_1.checkForInput)(inputs, inputIndex);
   const { hash, sighashType, script } = getHashForSig(
@@ -1193,6 +1201,7 @@ function getHashAndSighashType(
     false,
     forkCoin,
     sighashTypes,
+    hashFunction,
   );
   checkScriptForPubkey(pubkey, script, 'sign');
   return {
@@ -1217,6 +1226,7 @@ function getHashForSig(
   forValidate,
   forkCoin,
   sighashTypes,
+  hashFunction,
 ) {
   const unsignedTx = cache.__TX;
   const sighashType = input.sighashType || getDefaultSighash(forkCoin);
@@ -1233,7 +1243,7 @@ function getHashForSig(
       inputIndex,
     );
     const prevoutHash = unsignedTx.ins[inputIndex].hash;
-    const utxoHash = nonWitnessUtxoTx.getHash();
+    const utxoHash = nonWitnessUtxoTx.getHash(false, hashFunction);
     // If a non-witness UTXO is provided, its hash must match the hash specified in the prevout
     if (!prevoutHash.equals(utxoHash)) {
       throw new Error(
@@ -1269,6 +1279,7 @@ function getHashForSig(
         meaningfulScript,
         prevout.value,
         sighashType,
+        hashFunction,
       );
     }
   } else if ((0, psbtutils_1.isP2WPKH)(meaningfulScript)) {
@@ -1290,6 +1301,7 @@ function getHashForSig(
         signingScript,
         prevout.value,
         sighashType,
+        hashFunction,
       );
     }
   } else {
@@ -1333,6 +1345,7 @@ function getHashForSig(
         inputIndex,
         meaningfulScript,
         sighashType,
+        hashFunction,
       );
     }
   }
@@ -1465,6 +1478,15 @@ function getPayment(script, scriptType, partialSig) {
         signature: partialSig[0].signature,
       });
       break;
+    case 'nonstandard':
+      payment = payments.p2sh({
+        redeem: {
+          output: script,
+          input: bscript.compile([partialSig[0].signature]),
+        },
+        pubkey: partialSig[0].pubkey,
+        signature: partialSig[0].signature,
+      });
   }
   return payment;
 }

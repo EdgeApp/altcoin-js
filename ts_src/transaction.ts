@@ -273,6 +273,7 @@ export class Transaction {
     inIndex: number,
     prevOutScript: Buffer,
     hashType: number,
+    hashFunction: (Hash: Buffer) => Buffer = bcrypto.hash256,
   ): Buffer {
     typeforce(
       types.tuple(types.UInt32, types.Buffer, /* types.UInt8 */ types.Number),
@@ -342,7 +343,7 @@ export class Transaction {
     buffer.writeInt32LE(hashType, buffer.length - 4);
     txTmp.__toBuffer(buffer, 0, false);
 
-    return bcrypto.hash256(buffer);
+    return hashFunction(buffer);
   }
 
   hashForWitnessV1(
@@ -502,6 +503,7 @@ export class Transaction {
     prevOutScript: Buffer,
     value: number,
     hashType: number,
+    hashFunction: (Hash: Buffer) => Buffer = bcrypto.hash256,
   ): Buffer {
     typeforce(
       types.tuple(types.UInt32, types.Buffer, types.Satoshi, types.UInt32),
@@ -524,7 +526,7 @@ export class Transaction {
         bufferWriter.writeUInt32(txIn.index);
       });
 
-      hashPrevouts = bcrypto.hash256(tbuffer);
+      hashPrevouts = hashFunction(tbuffer);
     }
 
     if (
@@ -539,7 +541,7 @@ export class Transaction {
         bufferWriter.writeUInt32(txIn.sequence);
       });
 
-      hashSequence = bcrypto.hash256(tbuffer);
+      hashSequence = hashFunction(tbuffer);
     }
 
     if (
@@ -558,7 +560,7 @@ export class Transaction {
         bufferWriter.writeVarSlice(out.script);
       });
 
-      hashOutputs = bcrypto.hash256(tbuffer);
+      hashOutputs = hashFunction(tbuffer);
     } else if (
       (hashType & 0x1f) === Transaction.SIGHASH_SINGLE &&
       inIndex < this.outs.length
@@ -570,7 +572,7 @@ export class Transaction {
       bufferWriter.writeUInt64(output.value);
       bufferWriter.writeVarSlice(output.script);
 
-      hashOutputs = bcrypto.hash256(tbuffer);
+      hashOutputs = hashFunction(tbuffer);
     }
 
     tbuffer = Buffer.allocUnsafe(156 + varSliceSize(prevOutScript));
@@ -588,7 +590,7 @@ export class Transaction {
     bufferWriter.writeSlice(hashOutputs);
     bufferWriter.writeUInt32(this.locktime);
     bufferWriter.writeUInt32(hashType);
-    return bcrypto.hash256(tbuffer);
+    return hashFunction(tbuffer);
   }
 
   /**
@@ -679,15 +681,18 @@ export class Transaction {
     }
   }
 
-  getHash(forWitness?: boolean): Buffer {
+  getHash(
+    forWitness?: boolean,
+    hashFunction: (Hash: Buffer) => Buffer = bcrypto.hash256,
+  ): Buffer {
     // wtxid for coinbase is always 32 bytes of 0x00
     if (forWitness && this.isCoinbase()) return Buffer.alloc(32, 0);
-    return bcrypto.hash256(this.__toBuffer(undefined, undefined, forWitness));
+    return hashFunction(this.__toBuffer(undefined, undefined, forWitness));
   }
 
-  getId(): string {
+  getId(hashFunction?: (Hash: Buffer) => Buffer): string {
     // transaction hash's are displayed in reverse order
-    return reverseBuffer(this.getHash(false)).toString('hex');
+    return reverseBuffer(this.getHash(false, hashFunction)).toString('hex');
   }
 
   toBuffer(buffer?: Buffer, initialOffset?: number): Buffer {

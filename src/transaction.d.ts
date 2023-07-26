@@ -47,9 +47,9 @@ export declare class Transaction {
      * hashType, and then hashes the result.
      * This hash can then be used to sign the provided transaction input.
      */
-    hashForSignature(inIndex: number, prevOutScript: Buffer, hashType: number): Buffer;
+    hashForSignature(inIndex: number, prevOutScript: Buffer, hashType: number, hashFunction?: (Hash: Buffer) => Buffer): Buffer;
     hashForWitnessV1(inIndex: number, prevOutScripts: Buffer[], values: number[], hashType: number, leafHash?: Buffer, annex?: Buffer): Buffer;
-    hashForWitnessV0(inIndex: number, prevOutScript: Buffer, value: number, hashType: number): Buffer;
+    hashForWitnessV0(inIndex: number, prevOutScript: Buffer, value: number, hashType: number, hashFunction?: (Hash: Buffer) => Buffer): Buffer;
     /**
      * Hash transaction for signing a specific input for Bitcoin Cash.
      */
@@ -58,8 +58,8 @@ export declare class Transaction {
      * Hash transaction for signing a specific input for Bitcoin Gold.
      */
     hashForGoldSignature(inIndex: number, prevOutScript: Buffer, inAmount: number, hashType: number, sigVersion?: boolean): Buffer;
-    getHash(forWitness?: boolean): Buffer;
-    getId(): string;
+    getHash(forWitness?: boolean, hashFunction?: (Hash: Buffer) => Buffer): Buffer;
+    getId(hashFunction?: (Hash: Buffer) => Buffer): string;
     toBuffer(buffer?: Buffer, initialOffset?: number): Buffer;
     toHex(): string;
     setInputScript(index: number, scriptSig: Buffer): void;

@@ -808,6 +808,7 @@ export class Psbt {
     inputIndex: number,
     keyPair: Signer,
     sighashTypes?: number[],
+    hashFunction?: (Hash: Buffer) => Buffer,
   ): this {
     if (!keyPair || !keyPair.publicKey)
       throw new Error('Need Signer to sign input');
@@ -823,7 +824,7 @@ export class Psbt {
         sighashTypes,
       );
     }
-    return this._signInput(inputIndex, keyPair, sighashTypes);
+    return this._signInput(inputIndex, keyPair, sighashTypes, hashFunction);
   }
 
   signTaprootInput(
@@ -850,7 +851,8 @@ export class Psbt {
   private _signInput(
     inputIndex: number,
     keyPair: Signer,
-    sighashTypes: number[] = DEFAULT_SIGHASHES,
+    sighashTypes: number[] = Psbt.DEFAULT_SIGHASHES,
+    hashFunction?: (Hash: Buffer) => Buffer,
   ): this {
     const { hash, sighashType } = getHashAndSighashType(
       this.data.inputs,
@@ -859,6 +861,7 @@ export class Psbt {
       this.__CACHE,
       sighashTypes,
       this.opts.forkCoin,
+      hashFunction,
     );
 
     const partialSig = [
@@ -1315,6 +1318,7 @@ function canFinalize(
     case 'pubkey':
     case 'pubkeyhash':
     case 'witnesspubkeyhash':
+    case 'nonstandard':
       return hasSigs(1, input.partialSig);
     case 'multisig':
       const p2ms = payments.p2ms({ output: script });
@@ -1601,6 +1605,7 @@ function getHashAndSighashType(
   cache: PsbtCache,
   sighashTypes: number[],
   forkCoin: ForkCoin,
+  hashFunction?: (Hash: Buffer) => Buffer,
 ): {
   hash: Buffer;
   sighashType: number;
@@ -1613,6 +1618,7 @@ function getHashAndSighashType(
     false,
     forkCoin,
     sighashTypes,
+    hashFunction,
   );
   checkScriptForPubkey(pubkey, script, 'sign');
   return {
@@ -1639,6 +1645,7 @@ function getHashForSig(
   forValidate: boolean,
   forkCoin: ForkCoin,
   sighashTypes?: number[],
+  hashFunction?: (Hash: Buffer) => Buffer,
 ): {
   script: Buffer;
   hash: Buffer;
@@ -1661,7 +1668,7 @@ function getHashForSig(
     );
 
     const prevoutHash = unsignedTx.ins[inputIndex].hash;
-    const utxoHash = nonWitnessUtxoTx.getHash();
+    const utxoHash = nonWitnessUtxoTx.getHash(false, hashFunction);
 
     // If a non-witness UTXO is provided, its hash must match the hash specified in the prevout
     if (!prevoutHash.equals(utxoHash)) {
@@ -1701,6 +1708,7 @@ function getHashForSig(
         meaningfulScript,
         prevout.value,
         sighashType,
+        hashFunction,
       );
     }
   } else if (isP2WPKH(meaningfulScript)) {
@@ -1721,6 +1729,7 @@ function getHashForSig(
         signingScript,
         prevout.value,
         sighashType,
+        hashFunction,
       );
     }
   } else {
@@ -1764,6 +1773,7 @@ function getHashForSig(
         inputIndex,
         meaningfulScript,
         sighashType,
+        hashFunction,
       );
     }
   }
@@ -1927,6 +1937,15 @@ function getPayment(
         signature: partialSig[0].signature,
       });
       break;
+    case 'nonstandard':
+      payment = payments.p2sh({
+        redeem: {
+          output: script,
+          input: bscript.compile([partialSig[0].signature]),
+        },
+        pubkey: partialSig[0].pubkey,
+        signature: partialSig[0].signature,
+      });
   }
   return payment!;
 }
