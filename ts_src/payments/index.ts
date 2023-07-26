@@ -1,3 +1,4 @@
+import { BaseConverter } from 'base-x';
 import { Network } from '../networks';
 import { Taptree } from '../types';
 import { p2data as embed } from './embed';
@@ -28,6 +29,8 @@ export interface Payment {
   redeemVersion?: number;
   scriptTree?: Taptree;
   witness?: Buffer[];
+  bs58EncodeFunc?: BaseConverter['encode'];
+  bs58DecodeFunc?: BaseConverter['decode'];
 }
 
 export type PaymentCreator = (a: Payment, opts?: PaymentOpts) => Payment;

@@ -27,7 +27,10 @@ function p2pkh(a, opts) {
     a,
   );
   const _address = lazy.value(() => {
-    const payload = Buffer.from(bs58check.decode(a.address));
+    const bs58DecodeFunc = !a.bs58DecodeFunc
+      ? bs58check.decode
+      : a.bs58DecodeFunc;
+    const payload = Buffer.from(bs58DecodeFunc(a.address));
     let version = payload.readUInt8(0);
     let hash = payload.slice(1);
     if (network.pubKeyHash > 255) {
@@ -43,6 +46,9 @@ function p2pkh(a, opts) {
   const o = { name: 'p2pkh', network };
   lazy.prop(o, 'address', () => {
     if (!o.hash) return;
+    const bs58EncodeFunc = !a.bs58EncodeFunc
+      ? bs58check.encode
+      : a.bs58EncodeFunc;
     const payload = Buffer.allocUnsafe(21);
     if (network.pubKeyHash < 256) {
       payload.writeUInt8(network.pubKeyHash, 0);
@@ -50,7 +56,7 @@ function p2pkh(a, opts) {
       payload.writeUInt16BE(network.pubKeyHash, 0);
     }
     o.hash.copy(payload, 1);
-    return bs58check.encode(payload);
+    return bs58EncodeFunc(payload);
   });
   lazy.prop(o, 'hash', () => {
     if (a.output) return a.output.slice(3, 23);
