@@ -1174,7 +1174,12 @@ function prepareFinalScripts(
     }
   } else {
     if (p2sh) {
-      finalScriptSig = p2sh.input;
+      // TODO: Figure out how to implement replay protection from the library user
+      if (scriptType === 'nonstandard') {
+        finalScriptSig = payment.input;
+      } else {
+        finalScriptSig = p2sh.input;
+      }
     } else {
       finalScriptSig = payment.input;
     }
