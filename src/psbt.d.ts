@@ -53,6 +53,9 @@ export type ValidateSigFunction = (pubkey: Buffer, msghash: Buffer, signature: B
  */
 export declare class Psbt {
     readonly data: PsbtBase;
+    static BCH_SIGHASH_ALL: number;
+    static BTG_SIGHASH_ALL: number;
+    static DEFAULT_SIGHASHES: number[];
     static fromBase64(data: string, opts?: PsbtOptsOptional): Psbt;
     static fromHex(data: string, opts?: PsbtOptsOptional): Psbt;
     static fromBuffer(buffer: Buffer, opts?: PsbtOptsOptional): Psbt;
@@ -99,7 +102,7 @@ export declare class Psbt {
     signInputHDAsync(inputIndex: number, hdKeyPair: HDSigner | HDSignerAsync, sighashTypes?: number[]): Promise<void>;
     signAllInputs(keyPair: Signer, sighashTypes?: number[]): this;
     signAllInputsAsync(keyPair: Signer | SignerAsync, sighashTypes?: number[]): Promise<void>;
-    signInput(inputIndex: number, keyPair: Signer, sighashTypes?: number[]): this;
+    signInput(inputIndex: number, keyPair: Signer, sighashTypes?: number[], hashFunction?: (Hash: Buffer) => Buffer): this;
     signTaprootInput(inputIndex: number, keyPair: Signer, tapLeafHashToSign?: Buffer, sighashTypes?: number[]): this;
     private _signInput;
     private _signTaprootInput;

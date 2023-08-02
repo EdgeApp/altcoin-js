@@ -42,7 +42,7 @@ function _toFutureSegwitAddress(output, network) {
   console.warn(FUTURE_SEGWIT_VERSION_WARNING);
   return toBech32(data, version, network.bech32);
 }
-function fromBase58Check(address) {
+function fromBase58Check(address, bs58DecodeFunc = bs58check.decode) {
   const isBCH = cashaddr.VALID_PREFIXES.indexOf(address.split(':')[0]) > -1;
   if (isBCH) {
     const result = cashaddr.decode(address);
@@ -74,7 +74,7 @@ function fromBase58Check(address) {
       hash: Buffer.from(result.hash),
     };
   } else {
-    const payload = Buffer.from(bs58check.decode(address));
+    const payload = Buffer.from(bs58DecodeFunc(address));
     // TODO: 4.0.0, move to "toOutputScript"
     if (payload.length < 21) throw new TypeError(address + ' is too short');
     if (payload.length > 21) throw new TypeError(address + ' is too long');
@@ -106,7 +106,7 @@ function fromBech32(address) {
   };
 }
 exports.fromBech32 = fromBech32;
-function toBase58Check(hash, version) {
+function toBase58Check(hash, version, bs58EncodeFunc = bs58check.encode) {
   (0, types_1.typeforce)(
     (0, types_1.tuple)(types_1.Hash160bit, types_1.UInt8),
     arguments,
@@ -114,7 +114,7 @@ function toBase58Check(hash, version) {
   const payload = Buffer.allocUnsafe(21);
   payload.writeUInt8(version, 0);
   hash.copy(payload, 1);
-  return bs58check.encode(payload);
+  return bs58EncodeFunc(payload);
 }
 exports.toBase58Check = toBase58Check;
 function toBech32(data, version, prefix) {
@@ -149,12 +149,12 @@ function fromOutputScript(output, network) {
   throw new Error(bscript.toASM(output) + ' has no matching Address');
 }
 exports.fromOutputScript = fromOutputScript;
-function toOutputScript(address, network) {
+function toOutputScript(address, network, bs58DecodeFunc) {
   network = network || networks.bitcoin;
   let decodeBase58;
   let decodeBech32;
   try {
-    decodeBase58 = fromBase58Check(address);
+    decodeBase58 = fromBase58Check(address, bs58DecodeFunc);
   } catch (e) {}
   if (decodeBase58) {
     if (decodeBase58.version === network.pubKeyHash)

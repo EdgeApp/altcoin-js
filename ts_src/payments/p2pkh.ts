@@ -29,9 +29,16 @@ export function p2pkh(a: Payment, opts?: PaymentOpts): Payment {
   );
 
   const _address = lazy.value(() => {
-    const payload = Buffer.from(bs58check.decode(a.address!));
-    const version = payload.readUInt8(0);
-    const hash = payload.slice(1);
+    const bs58DecodeFunc = !a.bs58DecodeFunc
+      ? bs58check.decode
+      : a.bs58DecodeFunc;
+    const payload = Buffer.from(bs58DecodeFunc(a.address!));
+    let version = payload.readUInt8(0);
+    let hash = payload.slice(1);
+    if (network.pubKeyHash > 255) {
+      version = payload.readUInt16BE(0);
+      hash = payload.slice(2);
+    }
     return { version, hash };
   });
   const _chunks = lazy.value(() => {
@@ -44,10 +51,17 @@ export function p2pkh(a: Payment, opts?: PaymentOpts): Payment {
   lazy.prop(o, 'address', () => {
     if (!o.hash) return;
 
+    const bs58EncodeFunc = !a.bs58EncodeFunc
+      ? bs58check.encode
+      : a.bs58EncodeFunc;
     const payload = Buffer.allocUnsafe(21);
-    payload.writeUInt8(network.pubKeyHash, 0);
+    if (network.pubKeyHash < 256) {
+      payload.writeUInt8(network.pubKeyHash, 0);
+    } else {
+      payload.writeUInt16BE(network.pubKeyHash, 0);
+    }
     o.hash.copy(payload, 1);
-    return bs58check.encode(payload);
+    return bs58EncodeFunc(payload);
   });
   lazy.prop(o, 'hash', () => {
     if (a.output) return a.output.slice(3, 23);

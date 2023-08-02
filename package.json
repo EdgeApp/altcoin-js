@@ -1,5 +1,5 @@
 {
-  "name": "bitcoinforksjs-lib",
+  "name": "altcoin-js",
   "version": "6.1.3",
   "description": "Client-side Bitcoin JavaScript library",
   "main": "./src/index.js",
@@ -50,6 +50,7 @@
   ],
   "dependencies": {
     "@noble/hashes": "^1.2.0",
+    "base-x": "^4.0.0",
     "bech32": "^2.0.0",
     "big-integer": "^1.6.51",
     "bip174": "^2.1.0",

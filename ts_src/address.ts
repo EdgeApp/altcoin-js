@@ -6,6 +6,7 @@ import * as bscript from './script';
 import { typeforce, tuple, Hash160bit, UInt8 } from './types';
 import { bech32, bech32m } from 'bech32';
 import * as bs58check from 'bs58check';
+import { BaseConverter } from 'base-x';
 export interface Base58CheckResult {
   hash: Buffer;
   version: number;
@@ -53,7 +54,10 @@ function _toFutureSegwitAddress(output: Buffer, network: Network): string {
   return toBech32(data, version, network.bech32);
 }
 
-export function fromBase58Check(address: string): Base58CheckResult {
+export function fromBase58Check(
+  address: string,
+  bs58DecodeFunc: BaseConverter['decode'] = bs58check.decode,
+): Base58CheckResult {
   const isBCH = cashaddr.VALID_PREFIXES.indexOf(address.split(':')[0]) > -1;
   if (isBCH) {
     const result = cashaddr.decode(address);
@@ -87,7 +91,7 @@ export function fromBase58Check(address: string): Base58CheckResult {
       hash: Buffer.from(result.hash),
     };
   } else {
-    const payload = Buffer.from(bs58check.decode(address));
+    const payload = Buffer.from(bs58DecodeFunc(address));
 
     // TODO: 4.0.0, move to "toOutputScript"
     if (payload.length < 21) throw new TypeError(address + ' is too short');
@@ -125,14 +129,17 @@ export function fromBech32(address: string): Bech32Result {
   };
 }
 
-export function toBase58Check(hash: Buffer, version: number): string {
+export function toBase58Check(
+  hash: Buffer,
+  version: number,
+  bs58EncodeFunc: BaseConverter['encode'] = bs58check.encode,
+): string {
   typeforce(tuple(Hash160bit, UInt8), arguments);
 
   const payload = Buffer.allocUnsafe(21);
   payload.writeUInt8(version, 0);
   hash.copy(payload, 1);
-
-  return bs58check.encode(payload);
+  return bs58EncodeFunc(payload);
 }
 
 export function toBech32(
@@ -174,13 +181,17 @@ export function fromOutputScript(output: Buffer, network?: Network): string {
   throw new Error(bscript.toASM(output) + ' has no matching Address');
 }
 
-export function toOutputScript(address: string, network?: Network): Buffer {
+export function toOutputScript(
+  address: string,
+  network?: Network,
+  bs58DecodeFunc?: (address: string) => any,
+): Buffer {
   network = network || networks.bitcoin;
 
   let decodeBase58: Base58CheckResult | undefined;
   let decodeBech32: Bech32Result | undefined;
   try {
-    decodeBase58 = fromBase58Check(address);
+    decodeBase58 = fromBase58Check(address, bs58DecodeFunc);
   } catch (e) {}
 
   if (decodeBase58) {

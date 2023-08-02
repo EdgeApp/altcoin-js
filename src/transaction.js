@@ -201,7 +201,12 @@ class Transaction {
    * hashType, and then hashes the result.
    * This hash can then be used to sign the provided transaction input.
    */
-  hashForSignature(inIndex, prevOutScript, hashType) {
+  hashForSignature(
+    inIndex,
+    prevOutScript,
+    hashType,
+    hashFunction = bcrypto.hash256,
+  ) {
     typeforce(
       types.tuple(types.UInt32, types.Buffer, /* types.UInt8 */ types.Number),
       arguments,
@@ -255,7 +260,7 @@ class Transaction {
     const buffer = Buffer.allocUnsafe(txTmp.byteLength(false) + 4);
     buffer.writeInt32LE(hashType, buffer.length - 4);
     txTmp.__toBuffer(buffer, 0, false);
-    return bcrypto.hash256(buffer);
+    return hashFunction(buffer);
   }
   hashForWitnessV1(inIndex, prevOutScripts, values, hashType, leafHash, annex) {
     // https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki#common-signature-message
@@ -392,7 +397,13 @@ class Transaction {
       Buffer.concat([Buffer.from([0x00]), sigMsgWriter.end()]),
     );
   }
-  hashForWitnessV0(inIndex, prevOutScript, value, hashType) {
+  hashForWitnessV0(
+    inIndex,
+    prevOutScript,
+    value,
+    hashType,
+    hashFunction = bcrypto.hash256,
+  ) {
     typeforce(
       types.tuple(types.UInt32, types.Buffer, types.Satoshi, types.UInt32),
       arguments,
@@ -409,7 +420,7 @@ class Transaction {
         bufferWriter.writeSlice(txIn.hash);
         bufferWriter.writeUInt32(txIn.index);
       });
-      hashPrevouts = bcrypto.hash256(tbuffer);
+      hashPrevouts = hashFunction(tbuffer);
     }
     if (
       !(hashType & Transaction.SIGHASH_ANYONECANPAY) &&
@@ -421,7 +432,7 @@ class Transaction {
       this.ins.forEach(txIn => {
         bufferWriter.writeUInt32(txIn.sequence);
       });
-      hashSequence = bcrypto.hash256(tbuffer);
+      hashSequence = hashFunction(tbuffer);
     }
     if (
       (hashType & 0x1f) !== Transaction.SIGHASH_SINGLE &&
@@ -436,7 +447,7 @@ class Transaction {
         bufferWriter.writeUInt64(out.value);
         bufferWriter.writeVarSlice(out.script);
       });
-      hashOutputs = bcrypto.hash256(tbuffer);
+      hashOutputs = hashFunction(tbuffer);
     } else if (
       (hashType & 0x1f) === Transaction.SIGHASH_SINGLE &&
       inIndex < this.outs.length
@@ -446,7 +457,7 @@ class Transaction {
       bufferWriter = new bufferutils_1.BufferWriter(tbuffer, 0);
       bufferWriter.writeUInt64(output.value);
       bufferWriter.writeVarSlice(output.script);
-      hashOutputs = bcrypto.hash256(tbuffer);
+      hashOutputs = hashFunction(tbuffer);
     }
     tbuffer = Buffer.allocUnsafe(156 + varSliceSize(prevOutScript));
     bufferWriter = new bufferutils_1.BufferWriter(tbuffer, 0);
@@ -462,7 +473,7 @@ class Transaction {
     bufferWriter.writeSlice(hashOutputs);
     bufferWriter.writeUInt32(this.locktime);
     bufferWriter.writeUInt32(hashType);
-    return bcrypto.hash256(tbuffer);
+    return hashFunction(tbuffer);
   }
   /**
    * Hash transaction for signing a specific input for Bitcoin Cash.
@@ -534,16 +545,16 @@ class Transaction {
       return this.hashForSignature(inIndex, prevOutScript, nForkHashType);
     }
   }
-  getHash(forWitness) {
+  getHash(forWitness, hashFunction = bcrypto.hash256) {
     // wtxid for coinbase is always 32 bytes of 0x00
     if (forWitness && this.isCoinbase()) return Buffer.alloc(32, 0);
-    return bcrypto.hash256(this.__toBuffer(undefined, undefined, forWitness));
+    return hashFunction(this.__toBuffer(undefined, undefined, forWitness));
   }
-  getId() {
+  getId(hashFunction) {
     // transaction hash's are displayed in reverse order
-    return (0, bufferutils_1.reverseBuffer)(this.getHash(false)).toString(
-      'hex',
-    );
+    return (0, bufferutils_1.reverseBuffer)(
+      this.getHash(false, hashFunction),
+    ).toString('hex');
   }
   toBuffer(buffer, initialOffset) {
     return this.__toBuffer(buffer, initialOffset, true);

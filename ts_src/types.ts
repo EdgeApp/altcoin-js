@@ -47,7 +47,7 @@ export function Signer(obj: any): boolean {
   );
 }
 
-const SATOSHI_MAX: number = 21 * 1e14;
+const SATOSHI_MAX: number = 105 * 1e14;
 export function Satoshi(value: number): boolean {
   return typeforce.UInt53(value) && value <= SATOSHI_MAX;
 }
@@ -62,9 +62,9 @@ export const Network = typeforce.compile({
     public: typeforce.UInt32,
     private: typeforce.UInt32,
   },
-  pubKeyHash: typeforce.UInt8,
-  scriptHash: typeforce.UInt8,
-  wif: typeforce.UInt8,
+  pubKeyHash: typeforce.UInt16,
+  scriptHash: typeforce.UInt16,
+  wif: typeforce.UInt16,
 });
 
 export interface XOnlyPointAddTweakResult {
