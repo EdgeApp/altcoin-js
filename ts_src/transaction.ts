@@ -70,6 +70,13 @@ export class Transaction {
   static readonly SIGHASH_NONE = 0x02;
   static readonly SIGHASH_SINGLE = 0x03;
   static readonly SIGHASH_ANYONECANPAY = 0x80;
+  /**
+   * Bit that selects the BIP143 sighash algorithm on chains that adopted it as
+   * replay protection (Bitcoin Cash and its descendants, Bitcoin Gold). Unset
+   * for Bitcoin, where the BIP143 preimage is selected by the input being
+   * segwit rather than by a hashType bit.
+   */
+  static readonly SIGHASH_BITCOINCASHBIP143 = 0x40;
   static readonly SIGHASH_OUTPUT_MASK = 0x03;
   static readonly SIGHASH_INPUT_MASK = 0x80;
   static readonly ADVANCED_TRANSACTION_MARKER = 0x00;
@@ -606,6 +613,32 @@ export class Transaction {
     bufferWriter.writeUInt32(this.locktime);
     bufferWriter.writeUInt32(hashType);
     return bcrypto.hash256(tbuffer);
+  }
+
+  /**
+   * Hash transaction for signing a specific input on a Bitcoin Cash-style
+   * fork-id chain.
+   *
+   * These chains select the BIP143 preimage with a hashType bit rather than by
+   * the input being segwit, so a non-segwit input still signs the BIP143
+   * digest. Bitcoin Cash's fork id is zero, so once that bit is set the
+   * preimage is identical to BIP143's.
+   */
+  hashForCashSignature(
+    inIndex: number,
+    prevOutScript: Uint8Array,
+    inAmount: bigint,
+    hashType: number,
+  ): Uint8Array {
+    if (hashType & Transaction.SIGHASH_BITCOINCASHBIP143) {
+      if (inAmount === undefined) {
+        throw new Error(
+          'Bitcoin Cash sighash requires value of input to be signed.',
+        );
+      }
+      return this.hashForWitnessV0(inIndex, prevOutScript, inAmount, hashType);
+    }
+    return this.hashForSignature(inIndex, prevOutScript, hashType);
   }
 
   getHash(forWitness?: boolean): Uint8Array {

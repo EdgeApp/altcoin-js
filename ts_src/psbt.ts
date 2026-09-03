@@ -54,6 +54,21 @@ export interface TransactionInput {
   sequence?: number;
 }
 
+/**
+ * SIGHASH_ALL as spelled on the fork-id chains, which OR the BIP143 selector
+ * bit into the hashType.
+ */
+const BCH_SIGHASH_ALL =
+  Transaction.SIGHASH_ALL | Transaction.SIGHASH_BITCOINCASHBIP143;
+
+/**
+ * The sighash types `signInput` accepts when the caller does not narrow the
+ * list itself. An input's own `sighashType` is rejected outright if it is not
+ * in this allowlist, so a fork-id chain cannot be signed without its
+ * SIGHASH_ALL appearing here.
+ */
+const DEFAULT_SIGHASHES = [BCH_SIGHASH_ALL, Transaction.SIGHASH_ALL];
+
 export interface PsbtTxInput extends TransactionInput {
   hash: Uint8Array;
 }
@@ -129,6 +144,9 @@ const DEFAULT_OPTS: PsbtOpts = {
  *   Transaction object. Such as fee rate not being larger than maximumFeeRate etc.
  */
 export class Psbt {
+  static BCH_SIGHASH_ALL: number = BCH_SIGHASH_ALL;
+  static DEFAULT_SIGHASHES: number[] = DEFAULT_SIGHASHES;
+
   static fromBase64(data: string, opts: PsbtOptsOptional = {}): Psbt {
     const buffer = tools.fromBase64(data);
     return this.fromBuffer(buffer, opts);
@@ -860,7 +878,13 @@ export class Psbt {
     const partialSig = [
       {
         pubkey: keyPair.publicKey,
-        signature: bscript.signature.encode(keyPair.sign(hash), sighashType),
+        // Only the low byte is encoded into the signature; a fork id occupies
+        // the high bytes of the hashType and is committed to by the preimage,
+        // not written into the DER encoding.
+        signature: bscript.signature.encode(
+          keyPair.sign(hash),
+          sighashType & 0xff,
+        ),
       },
     ];
 
@@ -1305,6 +1329,9 @@ function canFinalize(
     case 'pubkey':
     case 'pubkeyhash':
     case 'witnesspubkeyhash':
+    case 'nonstandard':
+      // `nonstandard` covers the replay-protection redeem script, which
+      // spends with a single signature but matches no standard template.
       return hasSigs(1, input.partialSig);
     case 'multisig':
       const p2ms = payments.p2ms({ output: script });
@@ -1399,7 +1426,9 @@ function checkPartialSigSighashes(input: PsbtInput): void {
   const { partialSig, sighashType } = input;
   partialSig.forEach((pSig: PartialSig) => {
     const { hashType } = bscript.signature.decode(pSig.signature);
-    if (sighashType !== hashType) {
+    // Compare only the low byte: a fork id lives in the high bytes of the
+    // input's sighashType and is never written into the signature encoding.
+    if ((sighashType & 0xff) !== hashType) {
       throw new Error('Signature sighash does not match input sighash type');
     }
   });
@@ -1580,7 +1609,10 @@ function prepareFinalScripts(
       finalScriptSig = p2sh.input;
     }
   } else {
-    if (p2sh) {
+    // A nonstandard payment already built its own complete scriptSig in
+    // getPayment, including the redeem script push. Re-wrapping it in p2sh
+    // would push the redeem script a second time.
+    if (p2sh && scriptType !== 'nonstandard') {
       finalScriptSig = p2sh.input;
     } else {
       finalScriptSig = payment.input;
@@ -1631,6 +1663,11 @@ function getHashForSig(
   const unsignedTx = cache.__TX;
   const sighashType = input.sighashType || Transaction.SIGHASH_ALL;
   checkSighashTypeAllowed(sighashType, sighashTypes);
+
+  // Fork-id chains select the BIP143 preimage by hashType bit rather than by
+  // the input being segwit. The bit is clear for Bitcoin, leaving every branch
+  // below on its vanilla path.
+  const isForkId = (sighashType & Transaction.SIGHASH_BITCOINCASHBIP143) > 0;
 
   let hash: Uint8Array;
   let prevout: Output;
@@ -1689,6 +1726,9 @@ function getHashForSig(
   } else {
     // non-segwit
     if (
+      // A fork-id input signs the BIP143 preimage, which takes the value from
+      // the witness UTXO, so it does not need the full parent transaction.
+      !isForkId &&
       input.nonWitnessUtxo === undefined &&
       cache.__UNSAFE_SIGN_NONSEGWIT === false
     )
@@ -1706,11 +1746,20 @@ function getHashForSig(
           'BIP174 compliant.\n*********************\nPROCEED WITH CAUTION!\n' +
           '*********************',
       );
-    hash = unsignedTx.hashForSignature(
-      inputIndex,
-      meaningfulScript,
-      sighashType,
-    );
+    if (isForkId) {
+      hash = unsignedTx.hashForCashSignature(
+        inputIndex,
+        meaningfulScript,
+        prevout.value,
+        sighashType,
+      );
+    } else {
+      hash = unsignedTx.hashForSignature(
+        inputIndex,
+        meaningfulScript,
+        sighashType,
+      );
+    }
   }
 
   return {
@@ -1927,6 +1976,18 @@ function getPayment(
     case 'witnesspubkeyhash':
       payment = payments.p2wpkh({
         output: script,
+        pubkey: partialSig[0].pubkey,
+        signature: partialSig[0].signature,
+      });
+      break;
+    case 'nonstandard':
+      // The redeem script is spent by pushing the signature alone, so the
+      // scriptSig is built here rather than by a standard template.
+      payment = payments.p2sh({
+        redeem: {
+          output: script,
+          input: bscript.compile([partialSig[0].signature]),
+        },
         pubkey: partialSig[0].pubkey,
         signature: partialSig[0].signature,
       });

@@ -301,14 +301,20 @@ export function isCanonicalPubKey(buffer: Uint8Array): boolean {
 /**
  * Checks if the provided hash type is defined.
  *
- * A hash type is considered defined if its modified value (after masking with ~0x80)
- * is greater than 0x00 and less than 0x04.
+ * A hash type is considered defined if its modified value (after masking off
+ * SIGHASH_ANYONECANPAY and the fork-id bit, i.e. ~0xc0) is greater than 0x00
+ * and less than 0x04.
+ *
+ * The fork-id bit (0x40, `Transaction.SIGHASH_BITCOINCASHBIP143`) is masked off
+ * as well as SIGHASH_ANYONECANPAY, so that fork-id chains can encode and decode
+ * their own signatures. Without this, `script_signature.encode` rejects a
+ * hashType such as 0x41 outright.
  *
  * @param hashType - The hash type to check.
  * @returns True if the hash type is defined, false otherwise.
  */
 export function isDefinedHashType(hashType: number): boolean {
-  const hashTypeMod = hashType & ~0x80;
+  const hashTypeMod = hashType & ~0xc0;
 
   return hashTypeMod > 0x00 && hashTypeMod < 0x04;
 }
