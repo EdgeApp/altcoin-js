@@ -1,7 +1,7 @@
 {
-  "name": "bitcoinjs-lib",
-  "version": "7.0.1",
-  "description": "Client-side Bitcoin JavaScript library",
+  "name": "altcoin-js",
+  "version": "7.0.0-alpha.0",
+  "description": "Client-side Bitcoin and altcoin JavaScript library",
   "type": "module",
   "main": "./src/cjs/index.cjs",
   "module": "./src/esm/index.js",
@@ -57,7 +57,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/bitcoinjs/bitcoinjs-lib.git"
+    "url": "https://github.com/EdgeApp/altcoin-js.git"
   },
   "files": [
     "src"
