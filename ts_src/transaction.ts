@@ -12,6 +12,55 @@ import * as types from './types.js';
 import * as tools from 'uint8array-tools';
 import * as v from 'valibot';
 
+/**
+ * Decides, per transaction version, how a serialized transaction is framed.
+ *
+ * Bitcoin's framing is uniform across versions, so both questions have a
+ * constant answer for it. Chains that appended their own structures after the
+ * locktime — PIVX, whose version 3 carries a Sapling trailer and consequently
+ * cannot be distinguished from segwit by the marker/flag bytes alone — answer
+ * differently for those versions.
+ */
+export interface TransactionTrailerPolicy {
+  /**
+   * Whether a transaction of this version may carry a segwit marker and flag.
+   * When false, the two bytes following the version are read as the input count
+   * instead.
+   */
+  allowsWitness(version: number): boolean;
+  /**
+   * Whether bytes trailing the locktime are preserved on the transaction rather
+   * than rejected as unexpected data.
+   */
+  preservesTrailer(version: number): boolean;
+}
+
+/** Bitcoin's framing: every version may be segwit, no version has a trailer. */
+export const BITCOIN_TRAILER_POLICY: TransactionTrailerPolicy = {
+  allowsWitness: () => true,
+  preservesTrailer: () => false,
+};
+
+let defaultTrailerPolicy: TransactionTrailerPolicy = BITCOIN_TRAILER_POLICY;
+
+/**
+ * Installs the policy used by `Transaction.fromBuffer`/`fromHex` when no policy
+ * is passed explicitly.
+ *
+ * This is process-wide because transactions are also parsed where no coin
+ * context is available — notably a PSBT input's `nonWitnessUtxo`, which `Psbt`
+ * decodes internally while signing.
+ */
+export function setDefaultTrailerPolicy(
+  policy: TransactionTrailerPolicy,
+): void {
+  defaultTrailerPolicy = policy;
+}
+
+export function getDefaultTrailerPolicy(): TransactionTrailerPolicy {
+  return defaultTrailerPolicy;
+}
+
 function varSliceSize(someScript: Uint8Array): number {
   const length = someScript.length;
 
@@ -82,7 +131,11 @@ export class Transaction {
   static readonly ADVANCED_TRANSACTION_MARKER = 0x00;
   static readonly ADVANCED_TRANSACTION_FLAG = 0x01;
 
-  static fromBuffer(buffer: Uint8Array, _NO_STRICT?: boolean): Transaction {
+  static fromBuffer(
+    buffer: Uint8Array,
+    _NO_STRICT?: boolean,
+    policy: TransactionTrailerPolicy = getDefaultTrailerPolicy(),
+  ): Transaction {
     const bufferReader = new BufferReader(buffer);
 
     const tx = new Transaction();
@@ -93,6 +146,7 @@ export class Transaction {
 
     let hasWitnesses = false;
     if (
+      policy.allowsWitness(tx.version) &&
       marker === Transaction.ADVANCED_TRANSACTION_MARKER &&
       flag === Transaction.ADVANCED_TRANSACTION_FLAG
     ) {
@@ -133,14 +187,17 @@ export class Transaction {
     tx.locktime = bufferReader.readUInt32();
 
     if (_NO_STRICT) return tx;
-    if (bufferReader.offset !== buffer.length)
-      throw new Error('Transaction has unexpected data');
+    if (bufferReader.offset !== buffer.length) {
+      if (!policy.preservesTrailer(tx.version))
+        throw new Error('Transaction has unexpected data');
+      tx.trailer = bufferReader.readSlice(buffer.length - bufferReader.offset);
+    }
 
     return tx;
   }
 
-  static fromHex(hex: string): Transaction {
-    return Transaction.fromBuffer(tools.fromHex(hex), false);
+  static fromHex(hex: string, policy?: TransactionTrailerPolicy): Transaction {
+    return Transaction.fromBuffer(tools.fromHex(hex), false, policy);
   }
 
   static isCoinbaseHash(buffer: Uint8Array): boolean {
@@ -155,6 +212,11 @@ export class Transaction {
   locktime: number = 0;
   ins: Input[] = [];
   outs: Output[] = [];
+  /**
+   * Bytes following the locktime, preserved verbatim for chains whose
+   * `TransactionTrailerPolicy` keeps them. Undefined for Bitcoin.
+   */
+  trailer?: Uint8Array;
 
   isCoinbase(): boolean {
     return (
@@ -248,7 +310,8 @@ export class Transaction {
         ? this.ins.reduce((sum, input) => {
             return sum + vectorSize(input.witness);
           }, 0)
-        : 0)
+        : 0) +
+      (this.trailer === undefined ? 0 : this.trailer.length)
     );
   }
 
@@ -256,6 +319,7 @@ export class Transaction {
     const newTx = new Transaction();
     newTx.version = this.version;
     newTx.locktime = this.locktime;
+    newTx.trailer = this.trailer;
 
     newTx.ins = this.ins.map(txIn => {
       return {
@@ -721,6 +785,8 @@ export class Transaction {
     }
 
     bufferWriter.writeUInt32(this.locktime);
+
+    if (this.trailer !== undefined) bufferWriter.writeSlice(this.trailer);
 
     // avoid slicing unless necessary
     if (initialOffset !== undefined)

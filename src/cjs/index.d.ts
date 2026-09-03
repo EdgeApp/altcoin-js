@@ -16,4 +16,5 @@ export { Network } from './networks.js';
 /** @hidden */
 export { Payment, PaymentCreator, PaymentOpts, Stack, StackElement, } from './payments/index.js';
 export { Input as TxInput, Output as TxOutput } from './transaction.js';
+export { BITCOIN_TRAILER_POLICY, getDefaultTrailerPolicy, setDefaultTrailerPolicy, TransactionTrailerPolicy, } from './transaction.js';
 export { initEccLib } from './ecc_lib.js';

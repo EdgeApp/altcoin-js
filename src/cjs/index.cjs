@@ -45,6 +45,9 @@ var __importStar =
   };
 Object.defineProperty(exports, '__esModule', { value: true });
 exports.initEccLib =
+  exports.setDefaultTrailerPolicy =
+  exports.getDefaultTrailerPolicy =
+  exports.BITCOIN_TRAILER_POLICY =
   exports.Transaction =
   exports.opcodes =
   exports.toXOnly =
@@ -99,6 +102,25 @@ Object.defineProperty(exports, 'Transaction', {
   enumerable: true,
   get: function () {
     return transaction_js_1.Transaction;
+  },
+});
+var transaction_js_2 = require('./transaction.cjs');
+Object.defineProperty(exports, 'BITCOIN_TRAILER_POLICY', {
+  enumerable: true,
+  get: function () {
+    return transaction_js_2.BITCOIN_TRAILER_POLICY;
+  },
+});
+Object.defineProperty(exports, 'getDefaultTrailerPolicy', {
+  enumerable: true,
+  get: function () {
+    return transaction_js_2.getDefaultTrailerPolicy;
+  },
+});
+Object.defineProperty(exports, 'setDefaultTrailerPolicy', {
+  enumerable: true,
+  get: function () {
+    return transaction_js_2.setDefaultTrailerPolicy;
   },
 });
 var ecc_lib_js_1 = require('./ecc_lib.cjs');

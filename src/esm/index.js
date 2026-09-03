@@ -9,4 +9,9 @@ export { Psbt, toXOnly } from './psbt.js';
 /** @hidden */
 export { OPS as opcodes } from './ops.js';
 export { Transaction } from './transaction.js';
+export {
+  BITCOIN_TRAILER_POLICY,
+  getDefaultTrailerPolicy,
+  setDefaultTrailerPolicy,
+} from './transaction.js';
 export { initEccLib } from './ecc_lib.js';

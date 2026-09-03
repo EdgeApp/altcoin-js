@@ -1,3 +1,37 @@
+/**
+ * Decides, per transaction version, how a serialized transaction is framed.
+ *
+ * Bitcoin's framing is uniform across versions, so both questions have a
+ * constant answer for it. Chains that appended their own structures after the
+ * locktime — PIVX, whose version 3 carries a Sapling trailer and consequently
+ * cannot be distinguished from segwit by the marker/flag bytes alone — answer
+ * differently for those versions.
+ */
+export interface TransactionTrailerPolicy {
+    /**
+     * Whether a transaction of this version may carry a segwit marker and flag.
+     * When false, the two bytes following the version are read as the input count
+     * instead.
+     */
+    allowsWitness(version: number): boolean;
+    /**
+     * Whether bytes trailing the locktime are preserved on the transaction rather
+     * than rejected as unexpected data.
+     */
+    preservesTrailer(version: number): boolean;
+}
+/** Bitcoin's framing: every version may be segwit, no version has a trailer. */
+export declare const BITCOIN_TRAILER_POLICY: TransactionTrailerPolicy;
+/**
+ * Installs the policy used by `Transaction.fromBuffer`/`fromHex` when no policy
+ * is passed explicitly.
+ *
+ * This is process-wide because transactions are also parsed where no coin
+ * context is available — notably a PSBT input's `nonWitnessUtxo`, which `Psbt`
+ * decodes internally while signing.
+ */
+export declare function setDefaultTrailerPolicy(policy: TransactionTrailerPolicy): void;
+export declare function getDefaultTrailerPolicy(): TransactionTrailerPolicy;
 export interface Output {
     script: Uint8Array;
     value: bigint;
@@ -30,13 +64,18 @@ export declare class Transaction {
     static readonly SIGHASH_INPUT_MASK = 128;
     static readonly ADVANCED_TRANSACTION_MARKER = 0;
     static readonly ADVANCED_TRANSACTION_FLAG = 1;
-    static fromBuffer(buffer: Uint8Array, _NO_STRICT?: boolean): Transaction;
-    static fromHex(hex: string): Transaction;
+    static fromBuffer(buffer: Uint8Array, _NO_STRICT?: boolean, policy?: TransactionTrailerPolicy): Transaction;
+    static fromHex(hex: string, policy?: TransactionTrailerPolicy): Transaction;
     static isCoinbaseHash(buffer: Uint8Array): boolean;
     version: number;
     locktime: number;
     ins: Input[];
     outs: Output[];
+    /**
+     * Bytes following the locktime, preserved verbatim for chains whose
+     * `TransactionTrailerPolicy` keeps them. Undefined for Bitcoin.
+     */
+    trailer?: Uint8Array;
     isCoinbase(): boolean;
     addInput(hash: Uint8Array, index: number, sequence?: number, scriptSig?: Uint8Array): number;
     addOutput(scriptPubKey: Uint8Array, value: bigint): number;

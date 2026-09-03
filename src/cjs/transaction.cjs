@@ -44,7 +44,9 @@ var __importStar =
     return result;
   };
 Object.defineProperty(exports, '__esModule', { value: true });
-exports.Transaction = void 0;
+exports.Transaction = exports.BITCOIN_TRAILER_POLICY = void 0;
+exports.setDefaultTrailerPolicy = setDefaultTrailerPolicy;
+exports.getDefaultTrailerPolicy = getDefaultTrailerPolicy;
 const bufferutils_js_1 = require('./bufferutils.cjs');
 const bcrypto = __importStar(require('./crypto.cjs'));
 const sha256_1 = require('@noble/hashes/sha256');
@@ -53,6 +55,26 @@ const script_js_1 = require('./script.cjs');
 const types = __importStar(require('./types.cjs'));
 const tools = __importStar(require('uint8array-tools'));
 const v = __importStar(require('valibot'));
+/** Bitcoin's framing: every version may be segwit, no version has a trailer. */
+exports.BITCOIN_TRAILER_POLICY = {
+  allowsWitness: () => true,
+  preservesTrailer: () => false,
+};
+let defaultTrailerPolicy = exports.BITCOIN_TRAILER_POLICY;
+/**
+ * Installs the policy used by `Transaction.fromBuffer`/`fromHex` when no policy
+ * is passed explicitly.
+ *
+ * This is process-wide because transactions are also parsed where no coin
+ * context is available — notably a PSBT input's `nonWitnessUtxo`, which `Psbt`
+ * decodes internally while signing.
+ */
+function setDefaultTrailerPolicy(policy) {
+  defaultTrailerPolicy = policy;
+}
+function getDefaultTrailerPolicy() {
+  return defaultTrailerPolicy;
+}
 function varSliceSize(someScript) {
   const length = someScript.length;
   return bufferutils_js_1.varuint.encodingLength(length) + length;
@@ -103,7 +125,7 @@ class Transaction {
   static SIGHASH_INPUT_MASK = 0x80;
   static ADVANCED_TRANSACTION_MARKER = 0x00;
   static ADVANCED_TRANSACTION_FLAG = 0x01;
-  static fromBuffer(buffer, _NO_STRICT) {
+  static fromBuffer(buffer, _NO_STRICT, policy = getDefaultTrailerPolicy()) {
     const bufferReader = new bufferutils_js_1.BufferReader(buffer);
     const tx = new Transaction();
     tx.version = bufferReader.readUInt32();
@@ -111,6 +133,7 @@ class Transaction {
     const flag = bufferReader.readUInt8();
     let hasWitnesses = false;
     if (
+      policy.allowsWitness(tx.version) &&
       marker === Transaction.ADVANCED_TRANSACTION_MARKER &&
       flag === Transaction.ADVANCED_TRANSACTION_FLAG
     ) {
@@ -145,12 +168,15 @@ class Transaction {
     }
     tx.locktime = bufferReader.readUInt32();
     if (_NO_STRICT) return tx;
-    if (bufferReader.offset !== buffer.length)
-      throw new Error('Transaction has unexpected data');
+    if (bufferReader.offset !== buffer.length) {
+      if (!policy.preservesTrailer(tx.version))
+        throw new Error('Transaction has unexpected data');
+      tx.trailer = bufferReader.readSlice(buffer.length - bufferReader.offset);
+    }
     return tx;
   }
-  static fromHex(hex) {
-    return Transaction.fromBuffer(tools.fromHex(hex), false);
+  static fromHex(hex, policy) {
+    return Transaction.fromBuffer(tools.fromHex(hex), false, policy);
   }
   static isCoinbaseHash(buffer) {
     v.parse(types.Hash256bitSchema, buffer);
@@ -163,6 +189,11 @@ class Transaction {
   locktime = 0;
   ins = [];
   outs = [];
+  /**
+   * Bytes following the locktime, preserved verbatim for chains whose
+   * `TransactionTrailerPolicy` keeps them. Undefined for Bitcoin.
+   */
+  trailer;
   isCoinbase() {
     return (
       this.ins.length === 1 && Transaction.isCoinbaseHash(this.ins[0].hash)
@@ -239,13 +270,15 @@ class Transaction {
         ? this.ins.reduce((sum, input) => {
             return sum + vectorSize(input.witness);
           }, 0)
-        : 0)
+        : 0) +
+      (this.trailer === undefined ? 0 : this.trailer.length)
     );
   }
   clone() {
     const newTx = new Transaction();
     newTx.version = this.version;
     newTx.locktime = this.locktime;
+    newTx.trailer = this.trailer;
     newTx.ins = this.ins.map(txIn => {
       return {
         hash: txIn.hash,
@@ -625,6 +658,7 @@ class Transaction {
       });
     }
     bufferWriter.writeUInt32(this.locktime);
+    if (this.trailer !== undefined) bufferWriter.writeSlice(this.trailer);
     // avoid slicing unless necessary
     if (initialOffset !== undefined)
       return buffer.slice(initialOffset, bufferWriter.offset);
