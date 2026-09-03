@@ -17,4 +17,10 @@ export { Network } from './networks.js';
 export { Payment, PaymentCreator, PaymentOpts, Stack, StackElement, } from './payments/index.js';
 export { Input as TxInput, Output as TxOutput } from './transaction.js';
 export { BITCOIN_TRAILER_POLICY, getDefaultTrailerPolicy, setDefaultTrailerPolicy, TransactionTrailerPolicy, } from './transaction.js';
+/**
+ * PSBT record types, re-exported so consumers can describe a PSBT input
+ * without depending on bip174 directly.
+ * @hidden
+ */
+export { Bip32Derivation, NonWitnessUtxo, PartialSig, PsbtInput, PsbtOutput, RedeemScript, SighashType, WitnessScript, WitnessUtxo, } from 'bip174';
 export { initEccLib } from './ecc_lib.js';

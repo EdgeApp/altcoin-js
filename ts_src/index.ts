@@ -39,4 +39,20 @@ export {
   setDefaultTrailerPolicy,
   TransactionTrailerPolicy,
 } from './transaction.js';
+/**
+ * PSBT record types, re-exported so consumers can describe a PSBT input
+ * without depending on bip174 directly.
+ * @hidden
+ */
+export {
+  Bip32Derivation,
+  NonWitnessUtxo,
+  PartialSig,
+  PsbtInput,
+  PsbtOutput,
+  RedeemScript,
+  SighashType,
+  WitnessScript,
+  WitnessUtxo,
+} from 'bip174';
 export { initEccLib } from './ecc_lib.js';
